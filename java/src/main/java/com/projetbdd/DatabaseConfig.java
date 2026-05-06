@@ -9,6 +9,6 @@ public final class DatabaseConfig {
             "jdbc:mysql://localhost:3306/projet_bdd?useSSL=false&serverTimezone=UTC"
     );
 
-    public static final String USER = System.getenv().getOrDefault("DB_USER", "postgres");
-    public static final String PASSWORD = System.getenv().getOrDefault("DB_PASSWORD", "postgres");
+    public static final String USER = System.getenv().getOrDefault("DB_USER", "root");
+    public static final String PASSWORD = System.getenv().getOrDefault("DB_PASSWORD", "");
 }
