@@ -1,0 +1,111 @@
+# Projet_BDD - Pizzeria prepayee
+
+Ce projet contient:
+
+- Modele entite-association
+- Modele relationnel
+- Scripts SQL (creation, logique metier, donnees, reporting)
+- API Java JDBC
+- Interface Java Swing
+
+## Base de donnees
+
+Ce projet supporte deux bases de donnees:
+
+- MySQL 8.0+ (par defaut, recommande)
+- PostgreSQL 14+ (historique)
+
+Pour migrer de PostgreSQL a MySQL, voir [MIGRATION_POSTGRESQL_TO_MYSQL.md](MIGRATION_POSTGRESQL_TO_MYSQL.md).
+
+## Architecture technique
+
+- Looping: conception du modele entite-association et du modele relationnel.
+- SQL: creation du schema, procedures, fonctions, triggers, donnees de test et requetes d analyse.
+- Java JDBC: couche d acces a la base et appels aux fonctions metier SQL.
+- Java Swing: interface graphique pour recharger un compte, passer une commande et consulter le solde.
+
+La description detaillee se trouve dans [docs/03_architecture_technique.md](docs/03_architecture_technique.md).
+
+## Arborescence
+
+- docs/01_modele_entite_association.md
+- docs/02_modele_relationnel.md
+- sql/01_create_schema.sql
+- sql/02_business_logic.sql
+- sql/03_seed_data.sql
+- sql/04_reporting_queries.sql
+- java/pom.xml
+- java/src/main/java/com/projetbdd/*.java
+
+## Prerequis
+
+- MySQL 8.0+
+- Java 17+
+- Maven 3.9+
+
+## 1) Creation de la base
+
+Exemple:
+
+- creer une base nommee projet_bdd dans MySQL
+
+Puis executer les scripts dans cet ordre:
+
+1. sql/01_create_schema.sql
+2. sql/02_business_logic.sql
+3. sql/03_seed_data.sql
+4. sql/04_reporting_queries.sql (pour les analyses)
+
+## 2) Regles metier implementees
+
+- Tailles pizza:
+	- naine = 2/3 du prix de base
+	- humaine = prix normal
+	- ogresse = 4/3 du prix de base
+- Prepayee:
+	- verification du solde avant validation
+	- refus si solde insuffisant + journalisation dans refus_commande
+- Fidelite:
+	- 1 pizza gratuite toutes les 10 pizzas
+- Livraison:
+	- si livraison en plus de 30 min, commande gratuite par remboursement
+
+## 3) Lancer l application Java Swing
+
+Depuis le dossier java:
+
+- Configurer les variables d environnement si besoin:
+	- DB_URL (defaut: jdbc:mysql://localhost:3306/projet_bdd)
+	- DB_USER (defaut: postgres)
+	- DB_PASSWORD (defaut: postgres)
+
+Commande:
+
+- mvn clean compile exec:java
+
+## 4) API JDBC
+
+La couche JDBC appelle les fonctions SQL:
+
+- fn_recharger_compte(id_client, montant)
+- fn_passer_commande(id_client, id_livreur, lignes_json, minutes_livraison)
+
+Exemple de lignes JSON:
+
+[{"pizza_id":1,"taille":"humaine","quantite":2},{"pizza_id":3,"taille":"ogresse","quantite":1}]
+
+## 5) Requetes d objectifs metier
+
+Le fichier sql/04_reporting_queries.sql couvre:
+
+- solde + facturation
+- chiffre d affaires
+- refus de commandes
+- meilleur client
+- mauvais livreur + vehicule
+- pizza la plus et la moins demandee
+- ingredient favori
+- vehicule jamais utilise
+- commandes par client
+- moyenne de commandes
+- clients au-dessus de la moyenne
