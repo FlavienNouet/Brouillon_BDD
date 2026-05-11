@@ -1,4 +1,4 @@
--- Requetes de pilotage (objectifs)
+-- Requetes de pilotage (MySQL 8+)
 
 -- 1) Solde du compte + facturation par client
 SELECT c.id_client, c.nom, c.solde,
@@ -10,11 +10,11 @@ LEFT JOIN compte_transaction t ON t.id_client = c.id_client
 GROUP BY c.id_client, c.nom, c.solde
 ORDER BY c.id_client;
 
--- 2) Chiffre d affaires (hors pizzas gratuites)
+-- 2) Chiffre d'affaires (hors pizzas gratuites)
 SELECT ROUND(COALESCE(SUM(cl.prix_facture), 0), 2) AS chiffre_affaires
 FROM commande_ligne cl;
 
--- 3) Refus de commande pour manque d argent
+-- 3) Refus de commande pour manque d'argent
 SELECT rc.*, c.nom
 FROM refus_commande rc
 JOIN client c ON c.id_client = rc.id_client
@@ -29,10 +29,10 @@ GROUP BY c.id_client, c.nom
 ORDER BY depense_totale DESC
 LIMIT 1;
 
--- 5) Mauvais livreur (retard moyen le plus eleve)
+-- 5) Mauvais livreur (retard moyen le plus eleve) - minutes
 SELECT l.id_livreur, l.nom,
        v.type_vehicule,
-    ROUND(AVG(GREATEST(EXTRACT(EPOCH FROM (co.date_livraison_reelle - co.date_livraison_prevue)) / 60, 0)), 2) AS retard_moyen_minutes
+       ROUND(AVG(GREATEST(TIMESTAMPDIFF(MINUTE, co.date_livraison_prevue, co.date_livraison_reelle), 0)), 2) AS retard_moyen_minutes
 FROM livreur l
 LEFT JOIN vehicule v ON v.id_vehicule = l.id_vehicule
 JOIN commande co ON co.id_livreur = l.id_livreur
@@ -42,21 +42,19 @@ ORDER BY retard_moyen_minutes DESC
 LIMIT 1;
 
 -- 6) Pizza la plus et la moins demandee
-WITH ventes AS (
-    SELECT p.nom, COUNT(*) AS nb_lignes,
-        ROW_NUMBER() OVER (ORDER BY COUNT(*) DESC, p.nom) AS rang_desc,
-        ROW_NUMBER() OVER (ORDER BY COUNT(*) ASC, p.nom) AS rang_asc
-    FROM commande_ligne cl
-    JOIN pizza p ON p.id_pizza = cl.id_pizza
-    GROUP BY p.nom
-)
-SELECT 'plus demandee' AS categorie, nom, nb_lignes
-FROM ventes
-WHERE rang_desc = 1
-UNION ALL
-SELECT 'moins demandee' AS categorie, nom, nb_lignes
-FROM ventes
-WHERE rang_asc = 1;
+SELECT p.nom, COUNT(*) AS nb_lignes
+FROM commande_ligne cl
+JOIN pizza p ON p.id_pizza = cl.id_pizza
+GROUP BY p.nom
+ORDER BY nb_lignes DESC
+LIMIT 1;
+
+SELECT p.nom, COUNT(*) AS nb_lignes
+FROM commande_ligne cl
+JOIN pizza p ON p.id_pizza = cl.id_pizza
+GROUP BY p.nom
+ORDER BY nb_lignes ASC
+LIMIT 1;
 
 -- 7) Ingredient favori (apparition dans pizzas vendues)
 SELECT i.nom, COUNT(*) AS occurrences

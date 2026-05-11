@@ -55,6 +55,7 @@ Puis executer les scripts dans cet ordre:
 2. sql/02_business_logic.sql
 3. sql/03_seed_data.sql
 4. sql/04_reporting_queries.sql (pour les analyses)
+5. sql/05_init_users_mysql.sql (comptes de test)
 
 ## 2) Regles metier implementees
 
@@ -76,12 +77,38 @@ Depuis le dossier java:
 
 - Configurer les variables d environnement si besoin:
 	- DB_URL (defaut: jdbc:mysql://localhost:3306/projet_bdd)
-	- DB_USER (defaut: postgres)
-	- DB_PASSWORD (defaut: postgres)
+	- DB_USER (defaut: root)
+	- DB_PASSWORD (defaut: vide)
 
 Commande:
 
 - mvn clean compile exec:java
+
+### Authentification
+
+L application demarre avec un ecran de connexion. Deux options:
+
+1. **S inscrire**: Creer un compte CLIENT directement depuis l interface
+	- Login: un identifiant de ton choix
+	- Mot de passe: de ton choix
+
+2. **Se connecter**: Si des utilisateurs existent deja dans la base (admin, livreur, etc.)
+
+Comptes de test prets a l emploi:
+
+- **admin** / **admin123**
+- **client1** / **client123**
+- **livreur1** / **livreur123**
+
+Ces comptes sont disponibles apres insertion du script [sql/05_init_users_mysql.sql](sql/05_init_users_mysql.sql).
+Ils sont aussi crees automatiquement au premier lancement de l application si la table utilisateur est absente ou vide.
+Pour plus de details, voir [AUTHENTICATION.md](AUTHENTICATION.md).
+
+### Roles et interfaces
+
+- **CLIENT**: Passer des commandes, consulter et recharger son solde
+- **LIVREUR**: Voir les commandes a livrer
+- **ADMIN**: Acces complet (gestion commandes, dashboard, gestion utilisateurs)
 
 ## 4) API JDBC
 

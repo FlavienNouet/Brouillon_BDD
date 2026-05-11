@@ -4,6 +4,7 @@ DROP TABLE IF EXISTS refus_commande;
 DROP TABLE IF EXISTS compte_transaction;
 DROP TABLE IF EXISTS commande_ligne;
 DROP TABLE IF EXISTS commande;
+DROP TABLE IF EXISTS utilisateur;
 DROP TABLE IF EXISTS livreur;
 DROP TABLE IF EXISTS vehicule;
 DROP TABLE IF EXISTS pizza_ingredient;
@@ -60,6 +61,19 @@ CREATE TABLE livreur (
     nom VARCHAR(100) NOT NULL,
     id_vehicule BIGINT,
     FOREIGN KEY (id_vehicule) REFERENCES vehicule(id_vehicule)
+);
+
+CREATE TABLE utilisateur (
+    id_utilisateur BIGINT AUTO_INCREMENT PRIMARY KEY,
+    login VARCHAR(50) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(20) NOT NULL CHECK (role IN ('CLIENT', 'LIVREUR', 'ADMIN')),
+    id_client BIGINT NULL,
+    id_livreur BIGINT NULL,
+    actif BOOLEAN NOT NULL DEFAULT TRUE,
+    date_creation TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_client) REFERENCES client(id_client) ON DELETE SET NULL,
+    FOREIGN KEY (id_livreur) REFERENCES livreur(id_livreur) ON DELETE SET NULL
 );
 
 CREATE TABLE commande (
