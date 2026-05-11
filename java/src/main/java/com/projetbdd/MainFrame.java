@@ -38,6 +38,7 @@ import java.sql.Statement;
 
 public class MainFrame extends JFrame {
     private final PizzaService service = new PizzaService();
+    private final Session session = Session.getInstance();
 
     private final JComboBox<PizzaService.ClientOption> clientCombo = new JComboBox<>();
     private final JComboBox<PizzaService.LivreurOption> livreurCombo = new JComboBox<>();
@@ -72,34 +73,413 @@ public class MainFrame extends JFrame {
         header.setLayout(new BorderLayout());
         header.setBorder(new EmptyBorder(16, 20, 16, 20));
 
+        JPanel titlePanel = new JPanel();
+        titlePanel.setOpaque(false);
+        titlePanel.setLayout(new BoxLayout(titlePanel, BoxLayout.Y_AXIS));
+
         JLabel title = new JLabel("Gestion Commandes Pizza");
         title.setForeground(Color.WHITE);
         title.setFont(new Font("Segoe UI", Font.BOLD, 28));
 
-        JLabel subtitle = new JLabel("Plateforme prepayee - Recharge, commandes et dashboard");
-        subtitle.setForeground(new Color(227, 238, 255));
-        subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        String subtitle = "Plateforme prepayee - " + session.getLogin() + " [" + session.getRole() + "]";
+        JLabel subtitleLabel = new JLabel(subtitle);
+        subtitleLabel.setForeground(new Color(227, 238, 255));
+        subtitleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
 
-        JPanel titlePanel = new JPanel();
-        titlePanel.setOpaque(false);
-        titlePanel.setLayout(new BoxLayout(titlePanel, BoxLayout.Y_AXIS));
         titlePanel.add(title);
         titlePanel.add(Box.createVerticalStrut(4));
-        titlePanel.add(subtitle);
+        titlePanel.add(subtitleLabel);
+
+        JButton logoutBtn = new JButton("Déconnexion");
+        logoutBtn.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        logoutBtn.setBackground(new Color(200, 50, 50));
+        logoutBtn.setForeground(Color.WHITE);
+        logoutBtn.setFocusPainted(false);
+        logoutBtn.addActionListener(e -> handleLogout());
+
+        JPanel headerCenter = new JPanel();
+        headerCenter.setOpaque(false);
+        headerCenter.add(titlePanel);
+
         header.add(titlePanel, BorderLayout.CENTER);
+        header.add(logoutBtn, BorderLayout.EAST);
         add(header, BorderLayout.NORTH);
 
         JTabbedPane tabs = new JTabbedPane();
         tabs.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         tabs.setBackground(new Color(243, 246, 251));
 
-        tabs.addTab("Commande", buildOrderTab());
-        tabs.addTab("Mon compte", buildAccountTab());
-        tabs.addTab("Tableau de bord", buildDashboardTab());
+        // Ajouter les tabs selon le rôle
+        if (session.isClient()) {
+            tabs.addTab("Commande", buildClientOrderTab());
+            tabs.addTab("Mon compte", buildClientAccountTab());
+        } else if (session.isLivreur()) {
+            tabs.addTab("Commandes à livrer", buildDeliveryTab());
+        } else if (session.isAdmin()) {
+            tabs.addTab("Commande", buildOrderTab());
+            tabs.addTab("Mon compte", buildAccountTab());
+            tabs.addTab("Tableau de bord", buildDashboardTab());
+            tabs.addTab("Gestion utilisateurs", buildAdminUserTab());
+        }
 
         add(tabs, BorderLayout.CENTER);
 
         refreshData();
+    }
+
+    private void handleLogout() {
+        session.logout();
+        dispose();
+        LoginFrame loginFrame = new LoginFrame();
+        loginFrame.setVisible(true);
+    }
+
+    private JPanel buildClientOrderTab() {
+        JPanel tab = new JPanel(new BorderLayout(12, 12));
+        tab.setBorder(new EmptyBorder(14, 14, 14, 14));
+        tab.setBackground(new Color(243, 246, 251));
+
+        JPanel pizzaCard = buildCard("Choix pizza");
+        JPanel pizzaGrid = new JPanel(new GridLayout(3, 2, 10, 10));
+        pizzaGrid.setOpaque(false);
+
+        setupCombo(pizzaCombo);
+        setupCombo(tailleCombo);
+        quantiteSpinner.setModel(new SpinnerNumberModel(1, 1, 50, 1));
+
+        pizzaGrid.add(buildLabel("Pizza"));
+        pizzaGrid.add(pizzaCombo);
+        pizzaGrid.add(buildLabel("Taille"));
+        pizzaGrid.add(tailleCombo);
+        pizzaGrid.add(buildLabel("Quantite"));
+        pizzaGrid.add(quantiteSpinner);
+
+        pizzaDetailsLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        pizzaDetailsLabel.setForeground(new Color(49, 66, 100));
+        pizzaDetailsLabel.setBorder(new EmptyBorder(8, 0, 8, 0));
+
+        JButton addLineBtn = new JButton("Ajouter au panier");
+        stylePrimaryButton(addLineBtn, new Color(23, 122, 89));
+        addLineBtn.addActionListener(e -> addLineToCart());
+
+        JPanel pizzaBottom = new JPanel(new BorderLayout(8, 8));
+        pizzaBottom.setOpaque(false);
+        pizzaBottom.add(pizzaDetailsLabel, BorderLayout.CENTER);
+        pizzaBottom.add(addLineBtn, BorderLayout.EAST);
+
+        pizzaCard.add(pizzaGrid, BorderLayout.CENTER);
+        pizzaCard.add(pizzaBottom, BorderLayout.SOUTH);
+
+        JPanel cartCard = buildCard("Panier commande");
+        cartList.setFont(new Font("Consolas", Font.PLAIN, 12));
+        cartList.setVisibleRowCount(6);
+        JScrollPane cartScroll = new JScrollPane(cartList);
+        cartScroll.setBorder(BorderFactory.createLineBorder(new Color(208, 216, 229)));
+
+        JButton removeBtn = new JButton("Retirer");
+        JButton clearBtn = new JButton("Vider");
+        JButton submitBtn = new JButton("Valider commande");
+        stylePrimaryButton(removeBtn, new Color(191, 76, 76));
+        stylePrimaryButton(clearBtn, new Color(116, 126, 147));
+        stylePrimaryButton(submitBtn, new Color(0, 159, 117));
+        removeBtn.addActionListener(e -> removeSelectedLine());
+        clearBtn.addActionListener(e -> clearCart());
+        submitBtn.addActionListener(e -> passerCommandeClient());
+
+        JPanel cartButtons = new JPanel(new GridLayout(1, 3, 10, 10));
+        cartButtons.setOpaque(false);
+        cartButtons.add(removeBtn);
+        cartButtons.add(clearBtn);
+        cartButtons.add(submitBtn);
+
+        panierTotalLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        panierTotalLabel.setForeground(new Color(19, 72, 171));
+
+        JPanel cartBottom = new JPanel();
+        cartBottom.setOpaque(false);
+        cartBottom.setLayout(new BoxLayout(cartBottom, BoxLayout.Y_AXIS));
+        cartBottom.add(Box.createVerticalStrut(6));
+        cartBottom.add(panierTotalLabel);
+        cartBottom.add(Box.createVerticalStrut(8));
+        cartBottom.add(cartButtons);
+
+        cartCard.add(cartScroll, BorderLayout.CENTER);
+        cartCard.add(cartBottom, BorderLayout.SOUTH);
+
+        JPanel configCard = buildCard("Parametres livraison");
+        JPanel configGrid = new JPanel(new GridLayout(1, 2, 10, 10));
+        configGrid.setOpaque(false);
+
+        setupField(minutesLivraisonField);
+        configGrid.add(buildLabel("Minutes livraison"));
+        configGrid.add(minutesLivraisonField);
+        configCard.add(configGrid, BorderLayout.CENTER);
+
+        JPanel left = new JPanel();
+        left.setOpaque(false);
+        left.setLayout(new BoxLayout(left, BoxLayout.Y_AXIS));
+        left.add(pizzaCard);
+        left.add(Box.createVerticalStrut(10));
+        left.add(configCard);
+
+        JPanel right = new JPanel();
+        right.setOpaque(false);
+        right.setLayout(new BoxLayout(right, BoxLayout.Y_AXIS));
+        right.add(cartCard);
+        right.add(Box.createVerticalStrut(10));
+
+        JPanel output = buildCard("Resultat");
+        outputArea.setEditable(false);
+        outputArea.setLineWrap(true);
+        outputArea.setWrapStyleWord(true);
+        outputArea.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        outputArea.setBackground(new Color(249, 251, 254));
+        outputArea.setText("Pret. Selectionne des pizzas pour creer une commande.");
+        JScrollPane outputScroll = new JScrollPane(outputArea);
+        outputScroll.setBorder(BorderFactory.createLineBorder(new Color(208, 216, 229)));
+        output.add(outputScroll, BorderLayout.CENTER);
+        right.add(output);
+
+        JPanel center = new JPanel(new GridLayout(1, 2, 12, 0));
+        center.setOpaque(false);
+        center.add(left);
+        center.add(right);
+
+        tab.add(center, BorderLayout.CENTER);
+
+        pizzaCombo.addActionListener(e -> refreshPizzaDetails());
+        tailleCombo.addActionListener(e -> refreshPizzaDetails());
+
+        return tab;
+    }
+
+    private JPanel buildClientAccountTab() {
+        JPanel tab = new JPanel(new BorderLayout(12, 12));
+        tab.setBorder(new EmptyBorder(14, 14, 14, 14));
+        tab.setBackground(new Color(243, 246, 251));
+
+        JPanel balanceCard = buildCard("Consultation solde");
+        JLabel balanceValueLabel = new JLabel("Chargement...");
+        balanceValueLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        balanceValueLabel.setForeground(new Color(0, 159, 117));
+
+        JButton checkBalanceBtn = new JButton("Rafraichir");
+        stylePrimaryButton(checkBalanceBtn, new Color(236, 143, 25));
+        checkBalanceBtn.addActionListener(e -> {
+            try {
+                BigDecimal solde = service.lireSolde(session.getIdClient());
+                balanceValueLabel.setText("Votre solde: " + solde + " EUR");
+                showOutput("Solde consulte: " + solde + " EUR");
+            } catch (Exception ex) {
+                balanceValueLabel.setText("Erreur: " + ex.getMessage());
+                showOutput("Erreur lecture solde: " + ex.getMessage());
+            }
+        });
+
+        JPanel balanceTop = new JPanel(new BorderLayout());
+        balanceTop.setOpaque(false);
+        balanceTop.add(balanceValueLabel, BorderLayout.CENTER);
+        balanceTop.add(checkBalanceBtn, BorderLayout.EAST);
+
+        balanceCard.add(balanceTop, BorderLayout.CENTER);
+
+        JPanel rechargeCard = buildCard("Recharge compte");
+        JPanel rechargeGrid = new JPanel(new GridLayout(2, 2, 10, 10));
+        rechargeGrid.setOpaque(false);
+
+        setupField(montantRechargeField);
+
+        JButton rechargeBtn = new JButton("Recharger");
+        stylePrimaryButton(rechargeBtn, new Color(36, 112, 255));
+        rechargeBtn.addActionListener(e -> {
+            try {
+                BigDecimal montant = new BigDecimal(montantRechargeField.getText().trim());
+                service.rechargerCompte(session.getIdClient(), montant);
+                showOutput("Recharge de " + montant + " EUR effectuee.");
+                montantRechargeField.setText("20.00");
+                checkBalanceBtn.doClick();
+                JOptionPane.showMessageDialog(this, "Recharge effectuee.", "Success", JOptionPane.INFORMATION_MESSAGE);
+            } catch (Exception ex) {
+                showOutput("Erreur recharge: " + ex.getMessage());
+                JOptionPane.showMessageDialog(this, ex.getMessage(), "Erreur", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        rechargeGrid.add(buildLabel("Montant (EUR)"));
+        rechargeGrid.add(montantRechargeField);
+        JPanel emptyPlaceholder = new JPanel();
+        emptyPlaceholder.setOpaque(false);
+        rechargeGrid.add(emptyPlaceholder);
+        rechargeGrid.add(rechargeBtn);
+        rechargeCard.add(rechargeGrid, BorderLayout.CENTER);
+
+        JPanel center = new JPanel();
+        center.setOpaque(false);
+        center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
+        center.add(balanceCard);
+        center.add(Box.createVerticalStrut(12));
+        center.add(rechargeCard);
+        center.add(Box.createVerticalGlue());
+
+        tab.add(center, BorderLayout.CENTER);
+
+        // Charger le solde initial
+        try {
+            BigDecimal solde = service.lireSolde(session.getIdClient());
+            balanceValueLabel.setText("Votre solde: " + solde + " EUR");
+        } catch (Exception ex) {
+            balanceValueLabel.setText("Erreur lors du chargement du solde");
+        }
+
+        return tab;
+    }
+
+    private JPanel buildDeliveryTab() {
+        JPanel tab = new JPanel(new BorderLayout(12, 12));
+        tab.setBorder(new EmptyBorder(14, 14, 14, 14));
+        tab.setBackground(new Color(243, 246, 251));
+
+        JPanel ordersCard = buildCard("Commandes en attente de livraison");
+        JTextArea ordersArea = new JTextArea();
+        ordersArea.setEditable(false);
+        ordersArea.setFont(new Font("Monospaced", Font.PLAIN, 11));
+        ordersArea.setBackground(new Color(249, 251, 254));
+        ordersArea.setText("Chargement...");
+
+        JScrollPane ordersScroll = new JScrollPane(ordersArea);
+        ordersScroll.setBorder(BorderFactory.createLineBorder(new Color(208, 216, 229)));
+        ordersCard.add(ordersScroll, BorderLayout.CENTER);
+
+        JButton refreshBtn = new JButton("Rafraichir");
+        stylePrimaryButton(refreshBtn, new Color(98, 84, 177));
+        refreshBtn.addActionListener(e -> {
+            new Thread(() -> {
+                try {
+                    StringBuilder sb = new StringBuilder();
+                    try (Connection cn = Database.getConnection();
+                         Statement st = cn.createStatement()) {
+                        try (ResultSet rs = st.executeQuery(
+                                "SELECT c.id_commande, c.date_commande, cl.nom, c.date_livraison_prevue, c.statut " +
+                                "FROM commande c JOIN client cl ON c.id_client = cl.id_client " +
+                                "WHERE c.id_livreur = " + session.getIdLivreur() + " AND c.statut IN ('cree', 'preparee')" +
+                                " ORDER BY c.date_livraison_prevue")) {
+                            if (!rs.isBeforeFirst()) {
+                                sb.append("Aucune commande en attente de livraison.");
+                            } else {
+                                while (rs.next()) {
+                                    sb.append("Commande #").append(rs.getLong("id_commande"))
+                                            .append(" | Client: ").append(rs.getString("nom"))
+                                            .append(" | Prevue: ").append(rs.getTimestamp("date_livraison_prevue"))
+                                            .append(" | Statut: ").append(rs.getString("statut"))
+                                            .append("\n");
+                                }
+                            }
+                        }
+                    }
+                    final String result = sb.toString();
+                    SwingUtilities.invokeLater(() -> ordersArea.setText(result));
+                } catch (Exception ex) {
+                    SwingUtilities.invokeLater(() -> ordersArea.setText("Erreur: " + ex.getMessage()));
+                }
+            }).start();
+        });
+
+        JPanel top = new JPanel(new BorderLayout());
+        top.setOpaque(false);
+        top.add(refreshBtn, BorderLayout.EAST);
+
+        tab.add(top, BorderLayout.NORTH);
+        tab.add(ordersCard, BorderLayout.CENTER);
+
+        refreshBtn.doClick();
+        return tab;
+    }
+
+    private JPanel buildAdminUserTab() {
+        JPanel tab = new JPanel(new BorderLayout(12, 12));
+        tab.setBorder(new EmptyBorder(14, 14, 14, 14));
+        tab.setBackground(new Color(243, 246, 251));
+
+        JPanel usersCard = buildCard("Liste utilisateurs");
+        JTextArea usersArea = new JTextArea();
+        usersArea.setEditable(false);
+        usersArea.setFont(new Font("Monospaced", Font.PLAIN, 10));
+        usersArea.setBackground(new Color(249, 251, 254));
+        usersArea.setText("Chargement...");
+
+        JScrollPane usersScroll = new JScrollPane(usersArea);
+        usersScroll.setBorder(BorderFactory.createLineBorder(new Color(208, 216, 229)));
+        usersCard.add(usersScroll, BorderLayout.CENTER);
+
+        JButton refreshUsersBtn = new JButton("Rafraichir");
+        stylePrimaryButton(refreshUsersBtn, new Color(98, 84, 177));
+        refreshUsersBtn.addActionListener(e -> {
+            new Thread(() -> {
+                try {
+                    StringBuilder sb = new StringBuilder();
+                    try (Connection cn = Database.getConnection();
+                         Statement st = cn.createStatement()) {
+                        try (ResultSet rs = st.executeQuery(
+                                "SELECT id_utilisateur, login, role, actif FROM utilisateur ORDER BY id_utilisateur")) {
+                            if (!rs.isBeforeFirst()) {
+                                sb.append("Aucun utilisateur.");
+                            } else {
+                                while (rs.next()) {
+                                    sb.append("ID: ").append(rs.getLong("id_utilisateur"))
+                                            .append(" | Login: ").append(rs.getString("login"))
+                                            .append(" | Role: ").append(rs.getString("role"))
+                                            .append(" | Actif: ").append(rs.getBoolean("actif"))
+                                            .append("\n");
+                                }
+                            }
+                        }
+                    }
+                    final String result = sb.toString();
+                    SwingUtilities.invokeLater(() -> usersArea.setText(result));
+                } catch (Exception ex) {
+                    SwingUtilities.invokeLater(() -> usersArea.setText("Erreur: " + ex.getMessage()));
+                }
+            }).start();
+        });
+
+        JPanel top = new JPanel(new BorderLayout());
+        top.setOpaque(false);
+        top.add(refreshUsersBtn, BorderLayout.EAST);
+
+        tab.add(top, BorderLayout.NORTH);
+        tab.add(usersCard, BorderLayout.CENTER);
+
+        refreshUsersBtn.doClick();
+        return tab;
+    }
+
+    private void passerCommandeClient() {
+        try {
+            if (cartModel.isEmpty()) {
+                throw new IllegalStateException("Le panier est vide.");
+            }
+
+            JComboBox<PizzaService.LivreurOption> livreurComboLocal = new JComboBox<>();
+            for (PizzaService.LivreurOption livreur : service.listLivreurs()) {
+                livreurComboLocal.addItem(livreur);
+            }
+
+            if (livreurComboLocal.getItemCount() == 0) {
+                throw new IllegalStateException("Aucun livreur disponible.");
+            }
+
+            PizzaService.LivreurOption livreur = (PizzaService.LivreurOption) livreurComboLocal.getSelectedItem();
+            int minutes = Integer.parseInt(minutesLivraisonField.getText().trim());
+            String json = buildOrderJson();
+
+            long idCommande = service.passerCommande(session.getIdClient(), livreur.id, json, minutes);
+            showOutput("Commande creee: " + idCommande + " | Livreur: " + livreur.nom);
+            clearCart();
+            JOptionPane.showMessageDialog(this, "Commande creee: " + idCommande);
+        } catch (Exception ex) {
+            showOutput("Erreur commande: " + ex.getMessage());
+            JOptionPane.showMessageDialog(this, ex.getMessage(), "Erreur", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     private JPanel buildOrderTab() {
@@ -687,23 +1067,6 @@ public class MainFrame extends JFrame {
 
     public static void open() {
         SwingUtilities.invokeLater(() -> new MainFrame().setVisible(true));
-    }
-
-    private static final class GradientHeader extends JPanel {
-        @Override
-        protected void paintComponent(Graphics g) {
-            super.paintComponent(g);
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-            GradientPaint gradient = new GradientPaint(
-                    0, 0, new Color(19, 72, 171),
-                    getWidth(), getHeight(), new Color(42, 130, 228)
-            );
-            g2.setPaint(gradient);
-            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 0, 0);
-            g2.dispose();
-        }
     }
 
     private static final class CartLine {
