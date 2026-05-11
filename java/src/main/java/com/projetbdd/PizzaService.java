@@ -818,4 +818,71 @@ public class PizzaService {
         }
         return orders;
     }
+
+    public String validateDelivery(long idCommande) throws SQLException {
+        final String sqlGetOrder = """
+                SELECT c.id_commande, c.id_client, c.date_commande, c.date_livraison_prevue,
+                       TIMESTAMPDIFF(MINUTE, c.date_commande, NOW()) AS minutesEcoulees,
+                       COALESCE(SUM(CASE WHEN cld.est_gratuite = 0 THEN cld.quantite * cld.prix_unitaire_base ELSE 0 END), 0) AS montantPayé
+                FROM commande c
+                LEFT JOIN commande_ligne cld ON cld.id_commande = c.id_commande
+                WHERE c.id_commande = ?
+                GROUP BY c.id_commande, c.id_client, c.date_commande, c.date_livraison_prevue
+                """;
+        
+        try (Connection cn = Database.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sqlGetOrder)) {
+            ps.setLong(1, idCommande);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    throw new SQLException("Commande non trouvée: " + idCommande);
+                }
+                
+                long idClient = rs.getLong("id_client");
+                long minutesEcoulees = rs.getLong("minutesEcoulees");
+                BigDecimal montantPayé = rs.getBigDecimal("montantPayé");
+                
+                String result = "";
+                
+                if (minutesEcoulees > 30) {
+                    // Pizza en retard > 30 min = gratuite + remboursement
+                    final String sqlUpdateLines = "UPDATE commande_ligne SET est_gratuite = 1, prix_facture = 0 WHERE id_commande = ? AND est_gratuite = 0";
+                    try (PreparedStatement psUpdate = cn.prepareStatement(sqlUpdateLines)) {
+                        psUpdate.setLong(1, idCommande);
+                        psUpdate.executeUpdate();
+                    }
+                    
+                    // Ajouter transaction de remboursement
+                    final String sqlRefund = "INSERT INTO compte_transaction (id_client, type_transaction, montant, commentaire) VALUES (?, 'remboursement_retard', ?, CONCAT('Retard livraison commande #', ?))";
+                    try (PreparedStatement psRefund = cn.prepareStatement(sqlRefund)) {
+                        psRefund.setLong(1, idClient);
+                        psRefund.setBigDecimal(2, montantPayé);
+                        psRefund.setLong(3, idCommande);
+                        psRefund.executeUpdate();
+                    }
+                    
+                    // Mettre à jour le solde du client
+                    final String sqlUpdateClient = "UPDATE client SET solde = solde + ? WHERE id_client = ?";
+                    try (PreparedStatement psClientUpdate = cn.prepareStatement(sqlUpdateClient)) {
+                        psClientUpdate.setBigDecimal(1, montantPayé);
+                        psClientUpdate.setLong(2, idClient);
+                        psClientUpdate.executeUpdate();
+                    }
+                    
+                    result = "⏱️ RETARD DÉTECTÉ! Livraison: " + minutesEcoulees + " min (limite: 30 min)\n🎉 Pizzas devenues GRATUITES!\n💰 Remboursement: " + montantPayé + " EUR appliqué";
+                } else {
+                    result = "✅ Livraison rapide! (" + minutesEcoulees + " min) - Commande validée";
+                }
+                
+                // Mettre à jour le statut de la commande à "livree"
+                final String sqlUpdateStatus = "UPDATE commande SET statut = 'livree', date_livraison_reelle = NOW() WHERE id_commande = ?";
+                try (PreparedStatement psStatus = cn.prepareStatement(sqlUpdateStatus)) {
+                    psStatus.setLong(1, idCommande);
+                    psStatus.executeUpdate();
+                }
+                
+                return result;
+            }
+        }
+    }
 }

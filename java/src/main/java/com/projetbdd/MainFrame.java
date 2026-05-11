@@ -417,10 +417,6 @@ public class MainFrame extends JFrame {
         JButton refreshBtn = new JButton("Rafraichir");
         stylePrimaryButton(refreshBtn, new Color(98, 84, 177));
 
-        JButton downloadPdfBtn = new JButton("Télécharger PDF");
-        stylePrimaryButton(downloadPdfBtn, new Color(76, 175, 80));
-        downloadPdfBtn.setEnabled(false);
-
         JPanel header = new JPanel(new BorderLayout());
         header.setOpaque(false);
         JLabel titleLabel = new JLabel("Historique des commandes");
@@ -431,11 +427,10 @@ public class MainFrame extends JFrame {
         JPanel headerRight = new JPanel();
         headerRight.setOpaque(false);
         headerRight.add(refreshBtn);
-        headerRight.add(downloadPdfBtn);
         header.add(headerRight, BorderLayout.EAST);
 
         DefaultTableModel historyTableModel = new DefaultTableModel(
-                new Object[]{"Commande #", "Date", "Montant", "Statut", "Pizzas"},
+                new Object[]{"Commande #", "Date", "Montant", "Statut", "Pizzas", ""},
                 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -444,12 +439,40 @@ public class MainFrame extends JFrame {
         };
 
         JTable historyTable = buildReportTable(historyTableModel);
+        historyTable.setRowHeight(40);
+        
+        // Colonne action avec bouton
+        historyTable.getColumnModel().getColumn(5).setPreferredWidth(100);
+        historyTable.getColumnModel().getColumn(5).setMaxWidth(120);
+        historyTable.getColumnModel().getColumn(5).setMinWidth(90);
+        
+        historyTable.getColumnModel().getColumn(5).setCellRenderer((table, value, isSelected, hasFocus, row, col) -> {
+            JButton btn = new JButton("Télécharger");
+            btn.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+            btn.setForeground(Color.WHITE);
+            btn.setBackground(new Color(76, 175, 80));
+            btn.setFocusPainted(false);
+            btn.setBorder(BorderFactory.createLineBorder(new Color(76, 175, 80), 1));
+            btn.setOpaque(true);
+            return btn;
+        });
+        
+        // Ajouter MouseListener pour gérer les clics sur le bouton
+        historyTable.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                int row = historyTable.rowAtPoint(e.getPoint());
+                int col = historyTable.columnAtPoint(e.getPoint());
+                
+                if (row >= 0 && col == 5) {
+                    long idCommande = (long) historyTableModel.getValueAt(row, 0);
+                    downloadPdfForOrder(idCommande);
+                }
+            }
+        });
+        
         JScrollPane historyScroll = new JScrollPane(historyTable);
         historyScroll.setBorder(BorderFactory.createLineBorder(new Color(208, 216, 229)));
-
-        historyTable.getSelectionModel().addListSelectionListener(e -> {
-            downloadPdfBtn.setEnabled(historyTable.getSelectedRow() != -1);
-        });
 
         JPanel detailsCard = buildCard("Détails de la commande");
         JTextArea detailsArea = new JTextArea();
@@ -521,7 +544,8 @@ public class MainFrame extends JFrame {
                                     order.dateCommande,
                                     order.montantTotal + " EUR",
                                     order.statut,
-                                    pizzas.toString()
+                                    pizzas.toString(),
+                                    "Télécharger"
                             });
                         }
                         showOutput("Historique chargé: " + history.size() + " commande(s).");
@@ -530,33 +554,6 @@ public class MainFrame extends JFrame {
                     SwingUtilities.invokeLater(() -> showOutput("Erreur chargement historique: " + ex.getMessage()));
                 }
             }).start();
-        });
-
-        downloadPdfBtn.addActionListener(e -> {
-            int selectedRow = historyTable.getSelectedRow();
-            if (selectedRow != -1) {
-                long idCommande = (long) historyTableModel.getValueAt(selectedRow, 0);
-                JFileChooser fileChooser = new JFileChooser();
-                fileChooser.setFileFilter(new FileNameExtensionFilter("PDF Files", "pdf"));
-                fileChooser.setSelectedFile(new File("facture_" + idCommande + ".pdf"));
-                
-                if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
-                    new Thread(() -> {
-                        try {
-                            generateAndSavePDF(idCommande, fileChooser.getSelectedFile());
-                            SwingUtilities.invokeLater(() -> {
-                                showOutput("PDF téléchargé: " + fileChooser.getSelectedFile().getAbsolutePath());
-                                JOptionPane.showMessageDialog(this, "Facture téléchargée avec succès!", "Succès", JOptionPane.INFORMATION_MESSAGE);
-                            });
-                        } catch (Exception ex) {
-                            SwingUtilities.invokeLater(() -> {
-                                showOutput("Erreur génération PDF: " + ex.getMessage());
-                                JOptionPane.showMessageDialog(this, "Erreur: " + ex.getMessage(), "Erreur", JOptionPane.ERROR_MESSAGE);
-                            });
-                        }
-                    }).start();
-                }
-            }
         });
 
         JPanel tableCard = buildCard("Commandes passées");
@@ -572,6 +569,29 @@ public class MainFrame extends JFrame {
 
         refreshBtn.doClick();
         return tab;
+    }
+
+    private void downloadPdfForOrder(long idCommande) {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setFileFilter(new FileNameExtensionFilter("PDF Files", "pdf"));
+        fileChooser.setSelectedFile(new File("facture_" + idCommande + ".pdf"));
+        
+        if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+            new Thread(() -> {
+                try {
+                    generateAndSavePDF(idCommande, fileChooser.getSelectedFile());
+                    SwingUtilities.invokeLater(() -> {
+                        showOutput("PDF téléchargé: " + fileChooser.getSelectedFile().getAbsolutePath());
+                        JOptionPane.showMessageDialog(this, "Facture téléchargée avec succès!", "Succès", JOptionPane.INFORMATION_MESSAGE);
+                    });
+                } catch (Exception ex) {
+                    SwingUtilities.invokeLater(() -> {
+                        showOutput("Erreur génération PDF: " + ex.getMessage());
+                        JOptionPane.showMessageDialog(this, "Erreur: " + ex.getMessage(), "Erreur", JOptionPane.ERROR_MESSAGE);
+                    });
+                }
+            }).start();
+        }
     }
 
     private void generateAndSavePDF(long idCommande, File file) throws Exception {
@@ -653,6 +673,38 @@ public class MainFrame extends JFrame {
 
         JButton refreshBtn = new JButton("Rafraichir");
         stylePrimaryButton(refreshBtn, new Color(98, 84, 177));
+        
+        JButton validateBtn = new JButton("✅ Marquer comme livré");
+        stylePrimaryButton(validateBtn, new Color(76, 175, 80));
+        
+        JTextField commandeIdField = new JTextField(10);
+        commandeIdField.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        
+        validateBtn.addActionListener(e -> {
+            String idStr = JOptionPane.showInputDialog(this, 
+                    "Numéro de commande livrée:", 
+                    "Valider livraison", 
+                    JOptionPane.QUESTION_MESSAGE);
+            
+            if (idStr != null && !idStr.trim().isEmpty()) {
+                try {
+                    long idCommande = Long.parseLong(idStr.trim());
+                    String result = service.validateDelivery(idCommande);
+                    
+                    JOptionPane.showMessageDialog(this, result, "Résultat", 
+                            result.contains("RETARD") ? JOptionPane.WARNING_MESSAGE : JOptionPane.INFORMATION_MESSAGE);
+                    
+                    showOutput("Livraison validée: " + result);
+                    refreshBtn.doClick();
+                } catch (NumberFormatException ex) {
+                    JOptionPane.showMessageDialog(this, "Veuillez entrer un numéro valide", "Erreur", JOptionPane.ERROR_MESSAGE);
+                } catch (SQLException ex) {
+                    JOptionPane.showMessageDialog(this, "Erreur: " + ex.getMessage(), "Erreur", JOptionPane.ERROR_MESSAGE);
+                    showOutput("Erreur validation livraison: " + ex.getMessage());
+                }
+            }
+        });
+        
         refreshBtn.addActionListener(e -> {
             new Thread(() -> {
                 try {
@@ -660,7 +712,8 @@ public class MainFrame extends JFrame {
                     try (Connection cn = Database.getConnection();
                          Statement st = cn.createStatement()) {
                         try (ResultSet rs = st.executeQuery(
-                                "SELECT c.id_commande, c.date_commande, cl.nom, c.date_livraison_prevue, c.statut " +
+                                "SELECT c.id_commande, c.date_commande, cl.nom, c.date_livraison_prevue, c.statut, " +
+                                "TIMESTAMPDIFF(MINUTE, c.date_commande, NOW()) AS minutesEcoulees " +
                                 "FROM commande c JOIN client cl ON c.id_client = cl.id_client " +
                                 "WHERE c.id_livreur = " + session.getIdLivreur() + " AND c.statut IN ('cree', 'preparee')" +
                                 " ORDER BY c.date_livraison_prevue")) {
@@ -668,10 +721,13 @@ public class MainFrame extends JFrame {
                                 sb.append("Aucune commande en attente de livraison.");
                             } else {
                                 while (rs.next()) {
+                                    long minutesEcoulees = rs.getLong("minutesEcoulees");
+                                    String alert = minutesEcoulees > 30 ? " ⚠️ RETARD!" : "";
                                     sb.append("Commande #").append(rs.getLong("id_commande"))
                                             .append(" | Client: ").append(rs.getString("nom"))
-                                            .append(" | Prevue: ").append(rs.getTimestamp("date_livraison_prevue"))
-                                            .append(" | Statut: ").append(rs.getString("statut"))
+                                            .append(" | Temps écoulé: ").append(minutesEcoulees).append(" min")
+                                            .append(" | Prévue: ").append(rs.getTimestamp("date_livraison_prevue"))
+                                            .append(alert)
                                             .append("\n");
                                 }
                             }
@@ -687,7 +743,11 @@ public class MainFrame extends JFrame {
 
         JPanel top = new JPanel(new BorderLayout());
         top.setOpaque(false);
-        top.add(refreshBtn, BorderLayout.EAST);
+        JPanel topRight = new JPanel();
+        topRight.setOpaque(false);
+        topRight.add(validateBtn);
+        topRight.add(refreshBtn);
+        top.add(topRight, BorderLayout.EAST);
 
         tab.add(top, BorderLayout.NORTH);
         tab.add(ordersCard, BorderLayout.CENTER);
