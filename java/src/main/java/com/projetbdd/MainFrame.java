@@ -168,6 +168,7 @@ public class MainFrame extends JFrame {
             tabs.addTab("Mon compte", buildClientAccountTab());
         } else if (session.isLivreur()) {
             tabs.addTab("Commandes à livrer", buildDeliveryTab());
+            tabs.addTab("Fiche de livraison", buildDeliverySlipTab());
         } else if (session.isAdmin()) {
             tabs.addTab("Commande", buildOrderTab());
             tabs.addTab("Mon compte", buildAccountTab());
@@ -456,6 +457,123 @@ public class MainFrame extends JFrame {
         return tab;
     }
 
+    private JPanel buildDeliverySlipTab() {
+        JPanel tab = new JPanel(new BorderLayout(12, 12));
+        tab.setBorder(new EmptyBorder(14, 14, 14, 14));
+        tab.setBackground(new Color(243, 246, 251));
+
+        JButton refreshBtn = new JButton("Rafraichir");
+        stylePrimaryButton(refreshBtn, new Color(98, 84, 177));
+
+        JPanel header = new JPanel(new BorderLayout());
+        header.setOpaque(false);
+        JLabel titleLabel = new JLabel("Fiches de livraison");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        titleLabel.setForeground(new Color(28, 46, 92));
+        header.add(titleLabel, BorderLayout.WEST);
+        header.add(refreshBtn, BorderLayout.EAST);
+
+        DefaultTableModel slipsTableModel = new DefaultTableModel(
+                new Object[]{"Commande", "Client", "Pizza", "Quantité", "Gratuite", "Date Commande", "Date Prévue", "Date Réelle", "Retard (min)", "Véhicule"},
+                0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        JTable slipsTable = buildReportTable(slipsTableModel);
+        JScrollPane slipsScroll = new JScrollPane(slipsTable);
+        slipsScroll.setBorder(BorderFactory.createLineBorder(new Color(208, 216, 229)));
+
+        JPanel detailsCard = buildCard("Résumé de livraison");
+        JTextArea detailsArea = new JTextArea();
+        detailsArea.setEditable(false);
+        detailsArea.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        detailsArea.setLineWrap(true);
+        detailsArea.setWrapStyleWord(true);
+        detailsArea.setBackground(new Color(249, 251, 254));
+        JScrollPane detailsScroll = new JScrollPane(detailsArea);
+        detailsScroll.setBorder(BorderFactory.createLineBorder(new Color(208, 216, 229)));
+        detailsCard.add(detailsScroll, BorderLayout.CENTER);
+
+        refreshBtn.addActionListener(e -> {
+            new Thread(() -> {
+                try {
+                    List<PizzaService.DeliverySlip> slips = service.getDeliverySlips(session.getIdLivreur());
+                    SwingUtilities.invokeLater(() -> {
+                        slipsTableModel.setRowCount(0);
+                        for (PizzaService.DeliverySlip slip : slips) {
+                            String retardDisplay = slip.minutesRetard > 0 ? slip.minutesRetard + " ⚠️" : "-";
+                            slipsTableModel.addRow(new Object[]{
+                                    slip.idCommande,
+                                    slip.nomClient,
+                                    slip.nomPizza,
+                                    slip.quantite,
+                                    slip.estGratuite ? "Oui" : "Non",
+                                    slip.dateCommande,
+                                    slip.datePreveue,
+                                    slip.dateReelle != null ? slip.dateReelle : "En cours",
+                                    retardDisplay,
+                                    slip.typeVehicule + " (" + slip.immatriculation + ")"
+                            });
+                        }
+                        
+                        StringBuilder detailsText = new StringBuilder();
+                        detailsText.append("FICHE DE LIVRAISON\n");
+                        detailsText.append("=".repeat(70)).append("\n\n");
+                        detailsText.append("Livreur: ").append(session.getLogin()).append("\n");
+                        detailsText.append("Total commandes: ").append(slips.size()).append("\n\n");
+                        
+                        long totalRetards = slips.stream().filter(s -> s.minutesRetard > 0).count();
+                        detailsText.append("Commandes avec retard: ").append(totalRetards).append(" / ").append(slips.size()).append("\n");
+                        
+                        long totalGratuites = slips.stream().filter(s -> s.estGratuite).count();
+                        detailsText.append("Pizzas gratuites distribuées: ").append(totalGratuites).append("\n\n");
+                        
+                        detailsText.append("Détails des commandes:\n");
+                        detailsText.append("-".repeat(70)).append("\n");
+                        for (PizzaService.DeliverySlip slip : slips) {
+                            detailsText.append("\n📋 Commande #").append(slip.idCommande).append("\n");
+                            detailsText.append("  Client: ").append(slip.nomClient).append("\n");
+                            detailsText.append("  Pizza: ").append(slip.nomPizza).append(" x").append(slip.quantite)
+                                    .append(" (").append(slip.prixBase).append(" EUR)").append("\n");
+                            if (slip.estGratuite) {
+                                detailsText.append("  🎉 GRATUITE (fidélité ou retard)\n");
+                            }
+                            detailsText.append("  Commande: ").append(slip.dateCommande).append("\n");
+                            detailsText.append("  Prévue: ").append(slip.datePreveue).append("\n");
+                            if (slip.dateReelle != null) {
+                                detailsText.append("  Livrée: ").append(slip.dateReelle).append("\n");
+                                if (slip.minutesRetard > 0) {
+                                    detailsText.append("  ⚠️ RETARD: ").append(slip.minutesRetard).append(" minutes\n");
+                                }
+                            }
+                            detailsText.append("  Véhicule: ").append(slip.typeVehicule).append(" (").append(slip.immatriculation).append(")\n");
+                        }
+                        
+                        detailsArea.setText(detailsText.toString());
+                    });
+                } catch (Exception ex) {
+                    SwingUtilities.invokeLater(() -> detailsArea.setText("Erreur: " + ex.getMessage()));
+                }
+            }).start();
+        });
+
+        JPanel tableCard = buildCard("Détail des livraisons");
+        tableCard.add(slipsScroll, BorderLayout.CENTER);
+
+        JPanel center = new JPanel(new GridLayout(2, 1, 12, 12));
+        center.setOpaque(false);
+        center.add(tableCard);
+        center.add(detailsCard);
+
+        tab.add(header, BorderLayout.NORTH);
+        tab.add(center, BorderLayout.CENTER);
+
+        refreshBtn.doClick();
+        return tab;
+    }
 
     private JPanel buildAdminUserTab() {
         JPanel tab = new JPanel(new BorderLayout(12, 12));

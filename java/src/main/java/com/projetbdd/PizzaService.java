@@ -612,4 +612,85 @@ public class PizzaService {
         }
         return new FidelityInfo(0, 10, 10);
     }
+
+    public static final class DeliverySlip {
+        public final long idCommande;
+        public final String nomClient;
+        public final String nomLivreur;
+        public final String typeVehicule;
+        public final String immatriculation;
+        public final String dateCommande;
+        public final String datePreveue;
+        public final String dateReelle;
+        public final String nomPizza;
+        public final BigDecimal prixBase;
+        public final long quantite;
+        public final boolean estGratuite;
+        public final long minutesRetard;
+
+        public DeliverySlip(long idCommande, String nomClient, String nomLivreur, String typeVehicule,
+                           String immatriculation, String dateCommande, String datePreveue, String dateReelle,
+                           String nomPizza, BigDecimal prixBase, long quantite, boolean estGratuite, long minutesRetard) {
+            this.idCommande = idCommande;
+            this.nomClient = nomClient;
+            this.nomLivreur = nomLivreur;
+            this.typeVehicule = typeVehicule;
+            this.immatriculation = immatriculation;
+            this.dateCommande = dateCommande;
+            this.datePreveue = datePreveue;
+            this.dateReelle = dateReelle;
+            this.nomPizza = nomPizza;
+            this.prixBase = prixBase;
+            this.quantite = quantite;
+            this.estGratuite = estGratuite;
+            this.minutesRetard = minutesRetard;
+        }
+    }
+
+    public List<DeliverySlip> getDeliverySlips(long idLivreur) throws SQLException {
+        List<DeliverySlip> slips = new ArrayList<>();
+        final String sql = """
+                SELECT c.id_commande, cl.nom AS nomClient, l.nom AS nomLivreur,
+                       COALESCE(v.type_vehicule, 'N/A') AS typeVehicule,
+                       COALESCE(v.immatriculation, 'N/A') AS immatriculation,
+                       DATE_FORMAT(c.date_commande, '%Y-%m-%d %H:%i') AS dateCommande,
+                       DATE_FORMAT(c.date_livraison_prevue, '%Y-%m-%d %H:%i') AS datePreveue,
+                       DATE_FORMAT(c.date_livraison_reelle, '%Y-%m-%d %H:%i') AS dateReelle,
+                       p.nom AS nomPizza, p.prix_base, cld.quantite, cld.est_gratuite,
+                       TIMESTAMPDIFF(MINUTE, c.date_livraison_prevue, c.date_livraison_reelle) AS minutesRetard
+                FROM commande c
+                JOIN client cl ON cl.id_client = c.id_client
+                JOIN livreur l ON l.id_livreur = c.id_livreur
+                LEFT JOIN vehicule v ON v.id_vehicule = l.id_vehicule
+                JOIN commande_ligne cld ON cld.id_commande = c.id_commande
+                JOIN pizza p ON p.id_pizza = cld.id_pizza
+                WHERE c.id_livreur = ?
+                ORDER BY c.date_commande DESC, c.id_commande, cld.id_ligne
+                """;
+        try (Connection cn = Database.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sql)) {
+            ps.setLong(1, idLivreur);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    long minutesRetard = rs.getLong("minutesRetard");
+                    slips.add(new DeliverySlip(
+                            rs.getLong("id_commande"),
+                            rs.getString("nomClient"),
+                            rs.getString("nomLivreur"),
+                            rs.getString("typeVehicule"),
+                            rs.getString("immatriculation"),
+                            rs.getString("dateCommande"),
+                            rs.getString("datePreveue"),
+                            rs.getString("dateReelle"),
+                            rs.getString("nomPizza"),
+                            rs.getBigDecimal("prix_base"),
+                            rs.getLong("quantite"),
+                            rs.getBoolean("est_gratuite"),
+                            minutesRetard > 0 ? minutesRetard : 0
+                    ));
+                }
+            }
+        }
+        return slips;
+    }
 }

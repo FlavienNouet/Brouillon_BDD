@@ -8,6 +8,7 @@ com\projetbdd\PizzaService$TailleOption.class
 com\projetbdd\MainFrame$5.class
 com\projetbdd\PizzaService$ClientOrderCount.class
 com\projetbdd\MainFrame$9.class
+com\projetbdd\PizzaService$DeliverySlip.class
 com\projetbdd\MainFrame$4.class
 com\projetbdd\PizzaService$PizzaOption.class
 com\projetbdd\GradientHeader.class
@@ -20,6 +21,7 @@ com\projetbdd\MainFrame$2.class
 com\projetbdd\DatabaseConfig.class
 com\projetbdd\PizzaService.class
 com\projetbdd\MainFrame$1.class
+com\projetbdd\MainFrame$10.class
 com\projetbdd\MainFrame$6.class
 com\projetbdd\MainFrame$8.class
 com\projetbdd\UserService$UserAccountInfo.class
