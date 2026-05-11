@@ -21,6 +21,7 @@ import javax.swing.RowFilter;
 import javax.swing.SwingWorker;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableRowSorter;
@@ -28,6 +29,17 @@ import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.border.EmptyBorder;
+import javax.swing.JFileChooser;
+import com.itextpdf.kernel.pdf.PdfWriter;
+import com.itextpdf.kernel.pdf.PdfDocument;
+import com.itextpdf.layout.Document;
+import com.itextpdf.layout.element.Paragraph;
+import com.itextpdf.layout.element.Table;
+import com.itextpdf.layout.element.Cell;
+import com.itextpdf.io.image.ImageDataFactory;
+import com.itextpdf.layout.properties.TextAlignment;
+import com.itextpdf.layout.properties.UnitValue;
+import java.io.File;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -166,6 +178,7 @@ public class MainFrame extends JFrame {
         if (session.isClient()) {
             tabs.addTab("Commande", buildClientOrderTab());
             tabs.addTab("Mon compte", buildClientAccountTab());
+            tabs.addTab("Historique", buildOrderHistoryTab());
         } else if (session.isLivreur()) {
             tabs.addTab("Commandes à livrer", buildDeliveryTab());
             tabs.addTab("Fiche de livraison", buildDeliverySlipTab());
@@ -394,6 +407,232 @@ public class MainFrame extends JFrame {
         }
 
         return tab;
+    }
+
+    private JPanel buildOrderHistoryTab() {
+        JPanel tab = new JPanel(new BorderLayout(12, 12));
+        tab.setBorder(new EmptyBorder(14, 14, 14, 14));
+        tab.setBackground(new Color(243, 246, 251));
+
+        JButton refreshBtn = new JButton("Rafraichir");
+        stylePrimaryButton(refreshBtn, new Color(98, 84, 177));
+
+        JButton downloadPdfBtn = new JButton("Télécharger PDF");
+        stylePrimaryButton(downloadPdfBtn, new Color(76, 175, 80));
+        downloadPdfBtn.setEnabled(false);
+
+        JPanel header = new JPanel(new BorderLayout());
+        header.setOpaque(false);
+        JLabel titleLabel = new JLabel("Historique des commandes");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        titleLabel.setForeground(new Color(28, 46, 92));
+        header.add(titleLabel, BorderLayout.WEST);
+
+        JPanel headerRight = new JPanel();
+        headerRight.setOpaque(false);
+        headerRight.add(refreshBtn);
+        headerRight.add(downloadPdfBtn);
+        header.add(headerRight, BorderLayout.EAST);
+
+        DefaultTableModel historyTableModel = new DefaultTableModel(
+                new Object[]{"Commande #", "Date", "Montant", "Statut", "Pizzas"},
+                0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        JTable historyTable = buildReportTable(historyTableModel);
+        JScrollPane historyScroll = new JScrollPane(historyTable);
+        historyScroll.setBorder(BorderFactory.createLineBorder(new Color(208, 216, 229)));
+
+        historyTable.getSelectionModel().addListSelectionListener(e -> {
+            downloadPdfBtn.setEnabled(historyTable.getSelectedRow() != -1);
+        });
+
+        JPanel detailsCard = buildCard("Détails de la commande");
+        JTextArea detailsArea = new JTextArea();
+        detailsArea.setEditable(false);
+        detailsArea.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        detailsArea.setLineWrap(true);
+        detailsArea.setWrapStyleWord(true);
+        detailsArea.setBackground(new Color(249, 251, 254));
+        JScrollPane detailsScroll = new JScrollPane(detailsArea);
+        detailsScroll.setBorder(BorderFactory.createLineBorder(new Color(208, 216, 229)));
+        detailsCard.add(detailsScroll, BorderLayout.CENTER);
+
+        historyTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting() && historyTable.getSelectedRow() != -1) {
+                int selectedRow = historyTable.getSelectedRow();
+                long idCommande = (long) historyTableModel.getValueAt(selectedRow, 0);
+                try {
+                    List<PizzaService.OrderHistory> history = service.getOrderHistory(session.getIdClient());
+                    PizzaService.OrderHistory order = history.stream()
+                            .filter(o -> o.idCommande == idCommande)
+                            .findFirst()
+                            .orElse(null);
+                    
+                    if (order != null) {
+                        StringBuilder details = new StringBuilder();
+                        details.append("DÉTAILS COMMANDE #").append(order.idCommande).append("\n");
+                        details.append("=".repeat(60)).append("\n\n");
+                        details.append("Date: ").append(order.dateCommande).append("\n");
+                        details.append("Statut: ").append(order.statut).append("\n\n");
+                        details.append("ARTICLES:\n");
+                        details.append("-".repeat(60)).append("\n");
+                        
+                        for (PizzaService.OrderLineDetail ligne : order.lignes) {
+                            details.append("\n🍕 ").append(ligne.nomPizza).append(" (").append(ligne.taille).append(")\n");
+                            details.append("   Quantité: ").append(ligne.quantite).append("\n");
+                            details.append("   Prix unitaire: ").append(ligne.prixUnitaire).append(" EUR\n");
+                            if (ligne.estGratuite) {
+                                details.append("   🎉 GRATUITE (fidélité ou retard)\n");
+                            } else {
+                                details.append("   Sous-total: ").append(ligne.prixUnitaire.multiply(BigDecimal.valueOf(ligne.quantite))).append(" EUR\n");
+                            }
+                        }
+                        
+                        details.append("\n").append("-".repeat(60)).append("\n");
+                        details.append("MONTANT TOTAL: ").append(order.montantTotal).append(" EUR\n");
+                        
+                        detailsArea.setText(details.toString());
+                    }
+                } catch (SQLException ex) {
+                    detailsArea.setText("Erreur: " + ex.getMessage());
+                }
+            }
+        });
+
+        refreshBtn.addActionListener(e -> {
+            new Thread(() -> {
+                try {
+                    List<PizzaService.OrderHistory> history = service.getOrderHistory(session.getIdClient());
+                    SwingUtilities.invokeLater(() -> {
+                        historyTableModel.setRowCount(0);
+                        for (PizzaService.OrderHistory order : history) {
+                            StringBuilder pizzas = new StringBuilder();
+                            for (int i = 0; i < order.lignes.size(); i++) {
+                                pizzas.append(order.lignes.get(i).nomPizza);
+                                if (i < order.lignes.size() - 1) pizzas.append(", ");
+                            }
+                            historyTableModel.addRow(new Object[]{
+                                    order.idCommande,
+                                    order.dateCommande,
+                                    order.montantTotal + " EUR",
+                                    order.statut,
+                                    pizzas.toString()
+                            });
+                        }
+                        showOutput("Historique chargé: " + history.size() + " commande(s).");
+                    });
+                } catch (SQLException ex) {
+                    SwingUtilities.invokeLater(() -> showOutput("Erreur chargement historique: " + ex.getMessage()));
+                }
+            }).start();
+        });
+
+        downloadPdfBtn.addActionListener(e -> {
+            int selectedRow = historyTable.getSelectedRow();
+            if (selectedRow != -1) {
+                long idCommande = (long) historyTableModel.getValueAt(selectedRow, 0);
+                JFileChooser fileChooser = new JFileChooser();
+                fileChooser.setFileFilter(new FileNameExtensionFilter("PDF Files", "pdf"));
+                fileChooser.setSelectedFile(new File("facture_" + idCommande + ".pdf"));
+                
+                if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+                    new Thread(() -> {
+                        try {
+                            generateAndSavePDF(idCommande, fileChooser.getSelectedFile());
+                            SwingUtilities.invokeLater(() -> {
+                                showOutput("PDF téléchargé: " + fileChooser.getSelectedFile().getAbsolutePath());
+                                JOptionPane.showMessageDialog(this, "Facture téléchargée avec succès!", "Succès", JOptionPane.INFORMATION_MESSAGE);
+                            });
+                        } catch (Exception ex) {
+                            SwingUtilities.invokeLater(() -> {
+                                showOutput("Erreur génération PDF: " + ex.getMessage());
+                                JOptionPane.showMessageDialog(this, "Erreur: " + ex.getMessage(), "Erreur", JOptionPane.ERROR_MESSAGE);
+                            });
+                        }
+                    }).start();
+                }
+            }
+        });
+
+        JPanel tableCard = buildCard("Commandes passées");
+        tableCard.add(historyScroll, BorderLayout.CENTER);
+
+        JPanel center = new JPanel(new GridLayout(2, 1, 12, 12));
+        center.setOpaque(false);
+        center.add(tableCard);
+        center.add(detailsCard);
+
+        tab.add(header, BorderLayout.NORTH);
+        tab.add(center, BorderLayout.CENTER);
+
+        refreshBtn.doClick();
+        return tab;
+    }
+
+    private void generateAndSavePDF(long idCommande, File file) throws Exception {
+        List<PizzaService.OrderHistory> history = service.getOrderHistory(session.getIdClient());
+        PizzaService.OrderHistory order = history.stream()
+                .filter(o -> o.idCommande == idCommande)
+                .findFirst()
+                .orElseThrow(() -> new Exception("Commande non trouvée"));
+
+        PdfWriter writer = new PdfWriter(file);
+        PdfDocument pdf = new PdfDocument(writer);
+        Document document = new Document(pdf);
+
+        document.add(new Paragraph("FACTURE")
+                .setFontSize(24)
+                .setBold()
+                .setTextAlignment(TextAlignment.CENTER));
+        
+        document.add(new Paragraph("\n"));
+        document.add(new Paragraph("Commande #" + order.idCommande)
+                .setFontSize(12)
+                .setTextAlignment(TextAlignment.CENTER));
+        document.add(new Paragraph("Date: " + order.dateCommande)
+                .setFontSize(11)
+                .setTextAlignment(TextAlignment.CENTER));
+        document.add(new Paragraph("\n"));
+
+        Table table = new Table(UnitValue.createPercentArray(new float[]{40, 15, 15, 15, 15}));
+        table.setWidth(UnitValue.createPercentValue(100));
+
+        table.addHeaderCell(new Cell().add(new Paragraph("Pizza").setBold()));
+        table.addHeaderCell(new Cell().add(new Paragraph("Taille").setBold()));
+        table.addHeaderCell(new Cell().add(new Paragraph("Quantité").setBold()));
+        table.addHeaderCell(new Cell().add(new Paragraph("Prix Unit.").setBold()));
+        table.addHeaderCell(new Cell().add(new Paragraph("Sous-total").setBold()));
+
+        for (PizzaService.OrderLineDetail ligne : order.lignes) {
+            table.addCell(new Cell().add(new Paragraph(ligne.nomPizza)));
+            table.addCell(new Cell().add(new Paragraph(ligne.taille)));
+            table.addCell(new Cell().add(new Paragraph(String.valueOf(ligne.quantite))));
+            table.addCell(new Cell().add(new Paragraph(ligne.prixUnitaire.toPlainString() + " EUR")));
+            
+            if (ligne.estGratuite) {
+                table.addCell(new Cell().add(new Paragraph("GRATUITE")));
+            } else {
+                BigDecimal sousTotal = ligne.prixUnitaire.multiply(BigDecimal.valueOf(ligne.quantite));
+                table.addCell(new Cell().add(new Paragraph(sousTotal.toPlainString() + " EUR")));
+            }
+        }
+
+        document.add(table);
+        document.add(new Paragraph("\n"));
+        document.add(new Paragraph("MONTANT TOTAL: " + order.montantTotal.toPlainString() + " EUR")
+                .setFontSize(14)
+                .setBold()
+                .setTextAlignment(TextAlignment.RIGHT));
+        document.add(new Paragraph("Statut: " + order.statut)
+                .setFontSize(11)
+                .setTextAlignment(TextAlignment.RIGHT));
+
+        document.close();
     }
 
     private JPanel buildDeliveryTab() {
@@ -846,24 +1085,16 @@ public class MainFrame extends JFrame {
                 throw new IllegalStateException("Le panier est vide.");
             }
 
-            JComboBox<PizzaService.LivreurOption> livreurComboLocal = new JComboBox<>();
-            for (PizzaService.LivreurOption livreur : service.listLivreurs()) {
-                livreurComboLocal.addItem(livreur);
-            }
-
-            if (livreurComboLocal.getItemCount() == 0) {
-                throw new IllegalStateException("Aucun livreur disponible.");
-            }
-
-            PizzaService.LivreurOption livreur = (PizzaService.LivreurOption) livreurComboLocal.getSelectedItem();
+            // Sélectionner un livreur aléatoire qui n'est pas en livraison
+            PizzaService.LivreurOption livreur = service.selectRandomLivreur();
             int minutes = Integer.parseInt(minutesLivraisonField.getText().trim());
             String json = buildOrderJson();
 
             long idCommande = service.passerCommande(session.getIdClient(), livreur.id, json, minutes);
-            showOutput("Commande creee: " + idCommande + " | Livreur: " + livreur.nom);
+            showOutput("Commande creee: " + idCommande + " | Livreur assigné: " + livreur.nom + " (" + livreur.typeVehicule + ")");
             clearCart();
             refreshFidelityLabel();
-            JOptionPane.showMessageDialog(this, "Commande creee: " + idCommande);
+            JOptionPane.showMessageDialog(this, "Commande creee!\n\nNuméro: " + idCommande + "\nLivreur: " + livreur.nom + "\nVéhicule: " + livreur.typeVehicule);
         } catch (Exception ex) {
             showOutput("Erreur commande: " + ex.getMessage());
             JOptionPane.showMessageDialog(this, ex.getMessage(), "Erreur", JOptionPane.ERROR_MESSAGE);

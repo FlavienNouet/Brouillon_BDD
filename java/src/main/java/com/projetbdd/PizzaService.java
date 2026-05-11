@@ -3,6 +3,7 @@ package com.projetbdd;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -237,6 +238,46 @@ public class PizzaService {
             cs.setBigDecimal(2, montant);
             cs.execute();
         }
+    }
+
+    public List<LivreurOption> getAvailableLivreurs() throws SQLException {
+        List<LivreurOption> livreurs = new ArrayList<>();
+        final String sql = """
+                SELECT l.id_livreur,
+                       l.nom,
+                       COALESCE(v.type_vehicule, 'aucun') AS type_vehicule,
+                       COALESCE(v.immatriculation, '-') AS immatriculation
+                FROM livreur l
+                LEFT JOIN vehicule v ON v.id_vehicule = l.id_vehicule
+                WHERE l.id_livreur NOT IN (
+                    SELECT DISTINCT id_livreur
+                    FROM commande
+                    WHERE statut IN ('cree', 'preparee')
+                )
+                ORDER BY l.id_livreur
+                """;
+        try (Connection cn = Database.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                livreurs.add(new LivreurOption(
+                        rs.getLong("id_livreur"),
+                        rs.getString("nom"),
+                        rs.getString("type_vehicule"),
+                        rs.getString("immatriculation")
+                ));
+            }
+        }
+        return livreurs;
+    }
+
+    public LivreurOption selectRandomLivreur() throws SQLException {
+        List<LivreurOption> available = getAvailableLivreurs();
+        if (available.isEmpty()) {
+            throw new SQLException("Aucun livreur disponible pour la livraison.");
+        }
+        Random random = new Random();
+        return available.get(random.nextInt(available.size()));
     }
 
     public long passerCommande(long idClient, long idLivreur, String lignesJson, int minutesLivraison) throws SQLException {
@@ -692,5 +733,89 @@ public class PizzaService {
             }
         }
         return slips;
+    }
+
+    public static final class OrderHistory {
+        public final long idCommande;
+        public final String dateCommande;
+        public final BigDecimal montantTotal;
+        public final String statut;
+        public final List<OrderLineDetail> lignes;
+
+        public OrderHistory(long idCommande, String dateCommande, BigDecimal montantTotal, String statut, List<OrderLineDetail> lignes) {
+            this.idCommande = idCommande;
+            this.dateCommande = dateCommande;
+            this.montantTotal = montantTotal;
+            this.statut = statut;
+            this.lignes = lignes;
+        }
+    }
+
+    public static final class OrderLineDetail {
+        public final String nomPizza;
+        public final String taille;
+        public final long quantite;
+        public final BigDecimal prixUnitaire;
+        public final boolean estGratuite;
+
+        public OrderLineDetail(String nomPizza, String taille, long quantite, BigDecimal prixUnitaire, boolean estGratuite) {
+            this.nomPizza = nomPizza;
+            this.taille = taille;
+            this.quantite = quantite;
+            this.prixUnitaire = prixUnitaire;
+            this.estGratuite = estGratuite;
+        }
+    }
+
+    public List<OrderHistory> getOrderHistory(long idClient) throws SQLException {
+        List<OrderHistory> orders = new ArrayList<>();
+        final String sql = """
+                SELECT c.id_commande, DATE_FORMAT(c.date_commande, '%Y-%m-%d %H:%i') AS dateCommande, c.statut
+                FROM commande c
+                WHERE c.id_client = ?
+                ORDER BY c.date_commande DESC
+                """;
+        try (Connection cn = Database.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sql)) {
+            ps.setLong(1, idClient);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    long idCommande = rs.getLong("id_commande");
+                    String dateCommande = rs.getString("dateCommande");
+                    String statut = rs.getString("statut");
+                    
+                    // Récupérer les lignes de commande et calculer le montant
+                    List<OrderLineDetail> lignes = new ArrayList<>();
+                    BigDecimal montantTotal = BigDecimal.ZERO;
+                    
+                    final String lignesSql = """
+                            SELECT p.nom, cld.code_taille, cld.quantite, cld.prix_unitaire_base, cld.est_gratuite
+                            FROM commande_ligne cld
+                            JOIN pizza p ON p.id_pizza = cld.id_pizza
+                            WHERE cld.id_commande = ?
+                            """;
+                    try (PreparedStatement psLignes = cn.prepareStatement(lignesSql)) {
+                        psLignes.setLong(1, idCommande);
+                        try (ResultSet rsLignes = psLignes.executeQuery()) {
+                            while (rsLignes.next()) {
+                                String nomPizza = rsLignes.getString("nom");
+                                String taille = rsLignes.getString("code_taille");
+                                long quantite = rsLignes.getLong("quantite");
+                                BigDecimal prixUnitaire = rsLignes.getBigDecimal("prix_unitaire_base");
+                                boolean estGratuite = rsLignes.getBoolean("est_gratuite");
+                                
+                                lignes.add(new OrderLineDetail(nomPizza, taille, quantite, prixUnitaire, estGratuite));
+                                if (!estGratuite) {
+                                    montantTotal = montantTotal.add(prixUnitaire.multiply(BigDecimal.valueOf(quantite)));
+                                }
+                            }
+                        }
+                    }
+                    
+                    orders.add(new OrderHistory(idCommande, dateCommande, montantTotal, statut, lignes));
+                }
+            }
+        }
+        return orders;
     }
 }
