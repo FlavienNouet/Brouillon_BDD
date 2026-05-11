@@ -9,6 +9,7 @@ import javax.swing.DefaultListModel;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JList;
+import javax.swing.JTable;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -16,6 +17,13 @@ import javax.swing.JSpinner;
 import javax.swing.JTabbedPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.RowFilter;
+import javax.swing.SwingWorker;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableRowSorter;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
@@ -35,9 +43,13 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Pattern;
 
 public class MainFrame extends JFrame {
     private final PizzaService service = new PizzaService();
+    private final UserService userService = new UserService();
     private final Session session = Session.getInstance();
 
     private final JComboBox<PizzaService.ClientOption> clientCombo = new JComboBox<>();
@@ -54,6 +66,40 @@ public class MainFrame extends JFrame {
 
     private final JTextArea outputArea = new JTextArea();
     private final JTextArea dashboardArea = new JTextArea();
+    private final JLabel vehiclesNeverUsedValueLabel = new JLabel("0");
+    private final JLabel averageOrdersValueLabel = new JLabel("0.00");
+    private final JLabel aboveAverageValueLabel = new JLabel("0");
+    private final JLabel totalClientsValueLabel = new JLabel("0");
+    private final DefaultTableModel adminUsersTableModel = new DefaultTableModel(new Object[]{"ID", "Login", "Role", "Client", "Livreur", "Actif", "Création"}, 0) {
+        @Override
+        public boolean isCellEditable(int row, int column) {
+            return false;
+        }
+    };
+    private final TableRowSorter<DefaultTableModel> adminUsersSorter = new TableRowSorter<>(adminUsersTableModel);
+    private final JLabel adminSelectedUserLabel = new JLabel("Aucun utilisateur sélectionné");
+    private final JLabel adminSelectedRoleLabel = new JLabel("-");
+    private final JLabel adminSelectedStatusLabel = new JLabel("-");
+    private final JLabel adminSelectedLinkedLabel = new JLabel("-");
+    private final JTextField adminSearchField = new JTextField();
+    private final DefaultTableModel vehiclesTableModel = new DefaultTableModel(new Object[]{"ID", "Type", "Immatriculation", "Actif"}, 0) {
+        @Override
+        public boolean isCellEditable(int row, int column) {
+            return false;
+        }
+    };
+    private final DefaultTableModel ordersTableModel = new DefaultTableModel(new Object[]{"ID Client", "Client", "Nombre de commandes"}, 0) {
+        @Override
+        public boolean isCellEditable(int row, int column) {
+            return false;
+        }
+    };
+    private final DefaultTableModel aboveAverageTableModel = new DefaultTableModel(new Object[]{"ID Client", "Client", "Commandes"}, 0) {
+        @Override
+        public boolean isCellEditable(int row, int column) {
+            return false;
+        }
+    };
 
     private final JTextField montantRechargeField = new JTextField("20.00");
     private final JTextField minutesLivraisonField = new JTextField("25");
@@ -395,62 +441,270 @@ public class MainFrame extends JFrame {
         return tab;
     }
 
+
     private JPanel buildAdminUserTab() {
         JPanel tab = new JPanel(new BorderLayout(12, 12));
         tab.setBorder(new EmptyBorder(14, 14, 14, 14));
         tab.setBackground(new Color(243, 246, 251));
 
-        JPanel usersCard = buildCard("Liste utilisateurs");
-        JTextArea usersArea = new JTextArea();
-        usersArea.setEditable(false);
-        usersArea.setFont(new Font("Monospaced", Font.PLAIN, 10));
-        usersArea.setBackground(new Color(249, 251, 254));
-        usersArea.setText("Chargement...");
+        JPanel headerCard = buildCard("Gestion des comptes");
+        JPanel headerRow = new JPanel(new BorderLayout(10, 10));
+        headerRow.setOpaque(false);
 
-        JScrollPane usersScroll = new JScrollPane(usersArea);
-        usersScroll.setBorder(BorderFactory.createLineBorder(new Color(208, 216, 229)));
-        usersCard.add(usersScroll, BorderLayout.CENTER);
+        JPanel headerText = new JPanel();
+        headerText.setOpaque(false);
+        headerText.setLayout(new BoxLayout(headerText, BoxLayout.Y_AXIS));
+        JLabel title = new JLabel("Comptes utilisateurs");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        title.setForeground(new Color(28, 46, 92));
+        JLabel subtitle = new JLabel("Recherche, consultation et suppression de comptes");
+        subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        subtitle.setForeground(new Color(90, 99, 120));
+        headerText.add(title);
+        headerText.add(Box.createVerticalStrut(3));
+        headerText.add(subtitle);
 
-        JButton refreshUsersBtn = new JButton("Rafraichir");
-        stylePrimaryButton(refreshUsersBtn, new Color(98, 84, 177));
-        refreshUsersBtn.addActionListener(e -> {
-            new Thread(() -> {
-                try {
-                    StringBuilder sb = new StringBuilder();
-                    try (Connection cn = Database.getConnection();
-                         Statement st = cn.createStatement()) {
-                        try (ResultSet rs = st.executeQuery(
-                                "SELECT id_utilisateur, login, role, actif FROM utilisateur ORDER BY id_utilisateur")) {
-                            if (!rs.isBeforeFirst()) {
-                                sb.append("Aucun utilisateur.");
-                            } else {
-                                while (rs.next()) {
-                                    sb.append("ID: ").append(rs.getLong("id_utilisateur"))
-                                            .append(" | Login: ").append(rs.getString("login"))
-                                            .append(" | Role: ").append(rs.getString("role"))
-                                            .append(" | Actif: ").append(rs.getBoolean("actif"))
-                                            .append("\n");
-                                }
-                            }
-                        }
-                    }
-                    final String result = sb.toString();
-                    SwingUtilities.invokeLater(() -> usersArea.setText(result));
-                } catch (Exception ex) {
-                    SwingUtilities.invokeLater(() -> usersArea.setText("Erreur: " + ex.getMessage()));
+        JButton refreshBtn = new JButton("Rafraîchir");
+        stylePrimaryButton(refreshBtn, new Color(98, 84, 177));
+
+        headerRow.add(headerText, BorderLayout.WEST);
+        headerRow.add(refreshBtn, BorderLayout.EAST);
+        headerCard.add(headerRow, BorderLayout.CENTER);
+
+        JPanel searchCard = buildCard("Recherche rapide");
+        JPanel searchRow = new JPanel(new BorderLayout(10, 10));
+        searchRow.setOpaque(false);
+        searchRow.add(buildLabel("Filtrer par login ou rôle"), BorderLayout.NORTH);
+        setupField(adminSearchField);
+        searchRow.add(adminSearchField, BorderLayout.CENTER);
+        searchCard.add(searchRow, BorderLayout.CENTER);
+
+        JTable usersTable = new JTable(adminUsersTableModel);
+        usersTable.setRowSorter(adminUsersSorter);
+        usersTable.setSelectionMode(javax.swing.ListSelectionModel.SINGLE_SELECTION);
+        usersTable.setRowHeight(26);
+        usersTable.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        usersTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
+        usersTable.setFillsViewportHeight(true);
+        usersTable.setShowGrid(false);
+        usersTable.setBackground(new Color(249, 251, 254));
+        usersTable.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
+            @Override
+            public java.awt.Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+                java.awt.Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                if (!isSelected) {
+                    c.setBackground(row % 2 == 0 ? Color.WHITE : new Color(245, 248, 252));
                 }
-            }).start();
+                return c;
+            }
         });
 
-        JPanel top = new JPanel(new BorderLayout());
-        top.setOpaque(false);
-        top.add(refreshUsersBtn, BorderLayout.EAST);
+        JPanel tableCard = buildCard("Liste des comptes");
+        JScrollPane tableScroll = new JScrollPane(usersTable);
+        tableScroll.setBorder(BorderFactory.createLineBorder(new Color(208, 216, 229)));
+        tableCard.add(tableScroll, BorderLayout.CENTER);
 
-        tab.add(top, BorderLayout.NORTH);
-        tab.add(usersCard, BorderLayout.CENTER);
+        JPanel detailCard = buildCard("Détails du compte");
+        JPanel detailPanel = new JPanel();
+        detailPanel.setOpaque(false);
+        detailPanel.setLayout(new BoxLayout(detailPanel, BoxLayout.Y_AXIS));
 
-        refreshUsersBtn.doClick();
+        adminSelectedUserLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        adminSelectedUserLabel.setForeground(new Color(29, 44, 78));
+        adminSelectedRoleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        adminSelectedStatusLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        adminSelectedLinkedLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+
+        detailPanel.add(adminSelectedUserLabel);
+        detailPanel.add(Box.createVerticalStrut(12));
+        detailPanel.add(buildLabel("Rôle"));
+        detailPanel.add(adminSelectedRoleLabel);
+        detailPanel.add(Box.createVerticalStrut(8));
+        detailPanel.add(buildLabel("Statut"));
+        detailPanel.add(adminSelectedStatusLabel);
+        detailPanel.add(Box.createVerticalStrut(8));
+        detailPanel.add(buildLabel("Liens"));
+        detailPanel.add(adminSelectedLinkedLabel);
+        detailPanel.add(Box.createVerticalStrut(16));
+
+        JButton deleteBtn = new JButton("Supprimer le compte");
+        stylePrimaryButton(deleteBtn, new Color(191, 76, 76));
+        deleteBtn.setEnabled(false);
+        detailPanel.add(deleteBtn);
+
+        JLabel warning = new JLabel("La suppression retire définitivement le compte sélectionné.");
+        warning.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        warning.setForeground(new Color(140, 72, 72));
+        warning.setBorder(new EmptyBorder(12, 0, 0, 0));
+        detailPanel.add(warning);
+        detailCard.add(detailPanel, BorderLayout.CENTER);
+
+        JPanel center = new JPanel(new GridLayout(1, 2, 12, 12));
+        center.setOpaque(false);
+        JPanel leftColumn = new JPanel(new BorderLayout(0, 12));
+        leftColumn.setOpaque(false);
+        leftColumn.add(searchCard, BorderLayout.NORTH);
+        leftColumn.add(tableCard, BorderLayout.CENTER);
+        center.add(leftColumn);
+        center.add(detailCard);
+
+        tab.add(headerCard, BorderLayout.NORTH);
+        tab.add(center, BorderLayout.CENTER);
+
+        Runnable refreshAction = () -> loadAdminUsers(usersTable, deleteBtn);
+        refreshBtn.addActionListener(e -> refreshAction.run());
+        adminSearchField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                applyAdminUserFilter();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                applyAdminUserFilter();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                applyAdminUserFilter();
+            }
+        });
+
+        usersTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                updateAdminUserDetails(usersTable, deleteBtn);
+            }
+        });
+
+        deleteBtn.addActionListener(e -> deleteSelectedAdminUser(usersTable, deleteBtn));
+
+        tab.addHierarchyListener(e -> {
+            if (tab.isShowing() && adminUsersTableModel.getRowCount() == 0) {
+                refreshAction.run();
+            }
+        });
+
         return tab;
+    }
+
+    private void applyAdminUserFilter() {
+        String text = adminSearchField.getText().trim();
+        if (text.isEmpty()) {
+            adminUsersSorter.setRowFilter(null);
+            return;
+        }
+        String regex = "(?i)" + Pattern.quote(text);
+        adminUsersSorter.setRowFilter(RowFilter.regexFilter(regex));
+    }
+
+    private void loadAdminUsers(JTable usersTable, JButton deleteBtn) {
+        deleteBtn.setEnabled(false);
+        adminSelectedUserLabel.setText("Aucun utilisateur sélectionné");
+        adminSelectedRoleLabel.setText("-");
+        adminSelectedStatusLabel.setText("-");
+        adminSelectedLinkedLabel.setText("-");
+
+        new SwingWorker<List<UserService.UserAccountInfo>, Void>() {
+            @Override
+            protected List<UserService.UserAccountInfo> doInBackground() throws Exception {
+                return userService.listUsers();
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    List<UserService.UserAccountInfo> users = get();
+                    adminUsersTableModel.setRowCount(0);
+                    for (UserService.UserAccountInfo user : users) {
+                        adminUsersTableModel.addRow(new Object[]{
+                                user.idUtilisateur,
+                                user.login,
+                                user.role,
+                                user.idClient != null ? user.idClient : "-",
+                                user.idLivreur != null ? user.idLivreur : "-",
+                                user.actif ? "Oui" : "Non",
+                                user.dateCreation
+                        });
+                    }
+                    applyAdminUserFilter();
+                    if (usersTable.getRowCount() > 0) {
+                        usersTable.setRowSelectionInterval(0, 0);
+                    }
+                    showOutput("Liste des utilisateurs chargée: " + users.size());
+                } catch (Exception ex) {
+                    showOutput("Erreur chargement utilisateurs: " + ex.getMessage());
+                    JOptionPane.showMessageDialog(MainFrame.this, ex.getMessage(), "Erreur", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        }.execute();
+    }
+
+    private void updateAdminUserDetails(JTable usersTable, JButton deleteBtn) {
+        int viewRow = usersTable.getSelectedRow();
+        if (viewRow < 0) {
+            deleteBtn.setEnabled(false);
+            adminSelectedUserLabel.setText("Aucun utilisateur sélectionné");
+            adminSelectedRoleLabel.setText("-");
+            adminSelectedStatusLabel.setText("-");
+            adminSelectedLinkedLabel.setText("-");
+            return;
+        }
+
+        int modelRow = usersTable.convertRowIndexToModel(viewRow);
+        Object idValue = adminUsersTableModel.getValueAt(modelRow, 0);
+        Object loginValue = adminUsersTableModel.getValueAt(modelRow, 1);
+        Object roleValue = adminUsersTableModel.getValueAt(modelRow, 2);
+        Object clientValue = adminUsersTableModel.getValueAt(modelRow, 3);
+        Object livreurValue = adminUsersTableModel.getValueAt(modelRow, 4);
+        Object statusValue = adminUsersTableModel.getValueAt(modelRow, 5);
+        Object creationValue = adminUsersTableModel.getValueAt(modelRow, 6);
+
+        adminSelectedUserLabel.setText("#" + idValue + " - " + loginValue);
+        adminSelectedRoleLabel.setText(String.valueOf(roleValue));
+        adminSelectedStatusLabel.setText(String.valueOf(statusValue) + " | Création: " + creationValue);
+        adminSelectedLinkedLabel.setText("Client: " + clientValue + " | Livreur: " + livreurValue);
+        deleteBtn.setEnabled(!String.valueOf(idValue).equals(String.valueOf(session.getIdUtilisateur())));
+
+        if (!deleteBtn.isEnabled()) {
+            adminSelectedStatusLabel.setText(adminSelectedStatusLabel.getText() + " | suppression du compte courant interdite");
+        }
+    }
+
+    private void deleteSelectedAdminUser(JTable usersTable, JButton deleteBtn) {
+        int viewRow = usersTable.getSelectedRow();
+        if (viewRow < 0) {
+            JOptionPane.showMessageDialog(this, "Sélectionne d'abord un compte.", "Info", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        int modelRow = usersTable.convertRowIndexToModel(viewRow);
+        long idUtilisateur = ((Number) adminUsersTableModel.getValueAt(modelRow, 0)).longValue();
+        String login = String.valueOf(adminUsersTableModel.getValueAt(modelRow, 1));
+
+        if (idUtilisateur == session.getIdUtilisateur()) {
+            JOptionPane.showMessageDialog(this, "Tu ne peux pas supprimer ton propre compte.", "Info", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        int confirm = JOptionPane.showConfirmDialog(
+                this,
+                "Supprimer le compte '" + login + "' (#" + idUtilisateur + ") ?",
+                "Confirmer la suppression",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE
+        );
+        if (confirm != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        boolean deleted = userService.deleteUser(idUtilisateur);
+        if (deleted) {
+            showOutput("Compte supprimé: " + login + " (#" + idUtilisateur + ")");
+            loadAdminUsers(usersTable, deleteBtn);
+            JOptionPane.showMessageDialog(this, "Compte supprimé.", "Succès", JOptionPane.INFORMATION_MESSAGE);
+        } else {
+            JOptionPane.showMessageDialog(this, "Suppression impossible.", "Erreur", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     private void passerCommandeClient() {
@@ -729,31 +983,54 @@ public class MainFrame extends JFrame {
         tab.setBorder(new EmptyBorder(14, 14, 14, 14));
         tab.setBackground(new Color(243, 246, 251));
 
-        JPanel statsCard = buildCard("Statistiques");
-        dashboardArea.setEditable(false);
-        dashboardArea.setLineWrap(true);
-        dashboardArea.setWrapStyleWord(true);
-        dashboardArea.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        dashboardArea.setBackground(new Color(249, 251, 254));
-        dashboardArea.setText("Chargement des statistiques...");
-
-        JScrollPane statsScroll = new JScrollPane(dashboardArea);
-        statsScroll.setBorder(BorderFactory.createLineBorder(new Color(208, 216, 229)));
-        statsCard.add(statsScroll, BorderLayout.CENTER);
-
         JButton refreshDashBtn = new JButton("Rafraichir");
         stylePrimaryButton(refreshDashBtn, new Color(98, 84, 177));
         refreshDashBtn.addActionListener(e -> loadDashboardStats());
 
         JPanel dashTop = new JPanel(new BorderLayout());
         dashTop.setOpaque(false);
+        JLabel title = new JLabel("Dashboard administrateur");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        title.setForeground(new Color(28, 46, 92));
+        dashTop.add(title, BorderLayout.WEST);
         dashTop.add(refreshDashBtn, BorderLayout.EAST);
 
+        JPanel metricsRow = new JPanel(new GridLayout(1, 4, 10, 10));
+        metricsRow.setOpaque(false);
+        metricsRow.add(buildMetricCard("Véhicules jamais servis", vehiclesNeverUsedValueLabel, new Color(191, 76, 76)));
+        metricsRow.add(buildMetricCard("Moyenne commandes/client", averageOrdersValueLabel, new Color(36, 112, 255)));
+        metricsRow.add(buildMetricCard("Clients au-dessus moyenne", aboveAverageValueLabel, new Color(0, 159, 117)));
+        metricsRow.add(buildMetricCard("Clients commandant", totalClientsValueLabel, new Color(98, 84, 177)));
+
+        JTable vehiclesTable = buildReportTable(vehiclesTableModel);
+        JTable ordersTable = buildReportTable(ordersTableModel);
+        JTable aboveAverageTable = buildReportTable(aboveAverageTableModel);
+
+        JPanel vehiclesCard = buildCard("Véhicules n'ayant jamais servi");
+        vehiclesCard.add(new JScrollPane(vehiclesTable), BorderLayout.CENTER);
+
+        JPanel ordersCard = buildCard("Nombre de commandes par client");
+        ordersCard.add(new JScrollPane(ordersTable), BorderLayout.CENTER);
+
+        JPanel aboveAverageCard = buildCard("Clients ayant commandé plus que la moyenne");
+        aboveAverageCard.add(new JScrollPane(aboveAverageTable), BorderLayout.CENTER);
+
+        JPanel cards = new JPanel(new GridLayout(3, 1, 12, 12));
+        cards.setOpaque(false);
+        cards.add(vehiclesCard);
+        cards.add(ordersCard);
+        cards.add(aboveAverageCard);
+
+        JPanel center = new JPanel(new BorderLayout(12, 12));
+        center.setOpaque(false);
+        center.add(metricsRow, BorderLayout.NORTH);
+        center.add(cards, BorderLayout.CENTER);
+
         tab.add(dashTop, BorderLayout.NORTH);
-        tab.add(statsCard, BorderLayout.CENTER);
+        tab.add(center, BorderLayout.CENTER);
 
         tab.addHierarchyListener(e -> {
-            if (tab.isShowing() && dashboardArea.getText().equals("Chargement des statistiques...")) {
+            if (tab.isShowing() && "0".equals(vehiclesNeverUsedValueLabel.getText())) {
                 loadDashboardStats();
             }
         });
@@ -762,78 +1039,114 @@ public class MainFrame extends JFrame {
     }
 
     private void loadDashboardStats() {
-        new Thread(() -> {
-            try {
-                StringBuilder sb = new StringBuilder();
-                try (Connection cn = Database.getConnection();
-                     Statement st = cn.createStatement()) {
+        refreshDashboardAsync();
+    }
 
-                    // Chiffre d'affaires
-                    try (ResultSet rs = st.executeQuery(
-                            "SELECT ROUND(COALESCE(SUM(cl.prix_facture), 0), 2) AS ca FROM commande_ligne cl")) {
-                        if (rs.next()) {
-                            sb.append("=== CHIFFRE D'AFFAIRES ===\n");
-                            sb.append("CA total: ").append(rs.getBigDecimal("ca")).append(" EUR\n\n");
-                        }
-                    }
-
-                    // Meilleur client
-                    try (ResultSet rs = st.executeQuery(
-                            "SELECT c.id_client, c.nom, ROUND(SUM(cl.prix_facture), 2) AS depense FROM client c " +
-                            "JOIN commande co ON co.id_client = c.id_client " +
-                            "JOIN commande_ligne cl ON cl.id_commande = co.id_commande " +
-                            "GROUP BY c.id_client, c.nom ORDER BY depense DESC LIMIT 1")) {
-                        if (rs.next()) {
-                            sb.append("=== MEILLEUR CLIENT ===\n");
-                            sb.append("Client: ").append(rs.getString("nom"))
-                                    .append(" (#").append(rs.getLong("id_client"))
-                                    .append(") | Depense: ").append(rs.getBigDecimal("depense")).append(" EUR\n\n");
-                        }
-                    }
-
-                    // Pizza la plus demandee
-                    try (ResultSet rs = st.executeQuery(
-                            "SELECT p.nom, COUNT(*) AS nb FROM commande_ligne cl " +
-                            "JOIN pizza p ON p.id_pizza = cl.id_pizza " +
-                            "GROUP BY p.nom ORDER BY nb DESC LIMIT 1")) {
-                        if (rs.next()) {
-                            sb.append("=== PIZZA PLUS DEMANDEE ===\n");
-                            sb.append("Pizza: ").append(rs.getString("nom"))
-                                    .append(" | Commandes: ").append(rs.getInt("nb")).append("\n\n");
-                        }
-                    }
-
-                    // Nombre total de commandes
-                    try (ResultSet rs = st.executeQuery(
-                            "SELECT COUNT(*) AS nb FROM commande")) {
-                        if (rs.next()) {
-                            sb.append("=== STATISTIQUES GLOBALES ===\n");
-                            sb.append("Nombre de commandes: ").append(rs.getInt("nb")).append("\n");
-                        }
-                    }
-
-                    // Nombre total de clients actifs
-                    try (ResultSet rs = st.executeQuery(
-                            "SELECT COUNT(DISTINCT id_client) AS nb FROM commande")) {
-                        if (rs.next()) {
-                            sb.append("Clients ayant commande: ").append(rs.getInt("nb")).append("\n");
-                        }
-                    }
-
-                    // Montant total facture
-                    try (ResultSet rs = st.executeQuery(
-                            "SELECT COALESCE(SUM(montant), 0) AS total FROM compte_transaction WHERE type_transaction = 'debit_commande'")) {
-                        if (rs.next()) {
-                            sb.append("Total facture: ").append(rs.getBigDecimal("total")).append(" EUR\n");
-                        }
-                    }
-
-                }
-                SwingUtilities.invokeLater(() -> dashboardArea.setText(sb.toString()));
-            } catch (Exception ex) {
-                SwingUtilities.invokeLater(() -> dashboardArea.setText("Erreur chargement dashboard: " + ex.getMessage()));
+    private void refreshDashboardAsync() {
+        setDashboardLoadingState(true);
+        new SwingWorker<PizzaService.AdminDashboardData, Void>() {
+            @Override
+            protected PizzaService.AdminDashboardData doInBackground() throws Exception {
+                return service.loadAdminDashboardData();
             }
-        }).start();
+
+            @Override
+            protected void done() {
+                try {
+                    updateDashboard(get());
+                } catch (Exception ex) {
+                    setDashboardError("Erreur chargement dashboard: " + ex.getMessage());
+                }
+            }
+        }.execute();
+    }
+
+    private void updateDashboard(PizzaService.AdminDashboardData data) {
+        vehiclesTableModel.setRowCount(0);
+        ordersTableModel.setRowCount(0);
+        aboveAverageTableModel.setRowCount(0);
+
+        for (PizzaService.VehicleUnusedOption vehicle : data.vehiclesNeverUsed) {
+            vehiclesTableModel.addRow(new Object[]{
+                    vehicle.id,
+                    vehicle.typeVehicule,
+                    vehicle.immatriculation,
+                    vehicle.actif ? "Oui" : "Non"
+            });
+        }
+
+        for (PizzaService.ClientOrderCount stat : data.ordersPerClient) {
+            ordersTableModel.addRow(new Object[]{stat.idClient, stat.nom, stat.nbCommandes});
+        }
+
+        for (PizzaService.ClientOrderCount stat : data.clientsAboveAverage) {
+            aboveAverageTableModel.addRow(new Object[]{stat.idClient, stat.nom, stat.nbCommandes});
+        }
+
+        vehiclesNeverUsedValueLabel.setText(String.valueOf(data.vehiclesNeverUsed.size()));
+        averageOrdersValueLabel.setText(data.averageOrdersPerClient.toPlainString());
+        aboveAverageValueLabel.setText(String.valueOf(data.clientsAboveAverage.size()));
+        totalClientsValueLabel.setText(String.valueOf(data.ordersPerClient.size()));
+        showOutput("Dashboard admin rafraichi.");
+    }
+
+    private void setDashboardLoadingState(boolean loading) {
+        if (loading) {
+            vehiclesNeverUsedValueLabel.setText("...");
+            averageOrdersValueLabel.setText("...");
+            aboveAverageValueLabel.setText("...");
+            totalClientsValueLabel.setText("...");
+        }
+    }
+
+    private void setDashboardError(String message) {
+        vehiclesNeverUsedValueLabel.setText("Erreur");
+        averageOrdersValueLabel.setText("Erreur");
+        aboveAverageValueLabel.setText("Erreur");
+        totalClientsValueLabel.setText("Erreur");
+        JOptionPane.showMessageDialog(this, message, "Erreur dashboard", JOptionPane.ERROR_MESSAGE);
+        showOutput(message);
+    }
+
+    private JTable buildReportTable(DefaultTableModel model) {
+        JTable table = new JTable(model);
+        table.setRowHeight(24);
+        table.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        table.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
+        table.setShowGrid(false);
+        table.setFillsViewportHeight(true);
+        table.setBackground(new Color(249, 251, 254));
+        table.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
+            @Override
+            public java.awt.Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+                java.awt.Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                if (!isSelected) {
+                    c.setBackground(row % 2 == 0 ? Color.WHITE : new Color(245, 248, 252));
+                }
+                return c;
+            }
+        });
+        return table;
+    }
+
+    private JPanel buildMetricCard(String title, JLabel valueLabel, Color accent) {
+        JPanel card = new JPanel(new BorderLayout(6, 6));
+        card.setBackground(Color.WHITE);
+        card.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(218, 226, 239)),
+                new EmptyBorder(12, 12, 12, 12)
+        ));
+
+        JLabel titleLabel = new JLabel(title);
+        titleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        titleLabel.setForeground(new Color(90, 99, 120));
+
+        valueLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
+        valueLabel.setForeground(accent);
+
+        card.add(titleLabel, BorderLayout.NORTH);
+        card.add(valueLabel, BorderLayout.CENTER);
+        return card;
     }
 
     private void applyLookAndFeelDefaults() {

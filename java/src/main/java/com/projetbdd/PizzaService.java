@@ -11,6 +11,49 @@ import java.sql.SQLException;
 
 public class PizzaService {
 
+    public static final class VehicleUnusedOption {
+        public final long id;
+        public final String typeVehicule;
+        public final String immatriculation;
+        public final boolean actif;
+
+        public VehicleUnusedOption(long id, String typeVehicule, String immatriculation, boolean actif) {
+            this.id = id;
+            this.typeVehicule = typeVehicule;
+            this.immatriculation = immatriculation;
+            this.actif = actif;
+        }
+    }
+
+    public static final class ClientOrderCount {
+        public final long idClient;
+        public final String nom;
+        public final long nbCommandes;
+
+        public ClientOrderCount(long idClient, String nom, long nbCommandes) {
+            this.idClient = idClient;
+            this.nom = nom;
+            this.nbCommandes = nbCommandes;
+        }
+    }
+
+    public static final class AdminDashboardData {
+        public final List<VehicleUnusedOption> vehiclesNeverUsed;
+        public final List<ClientOrderCount> ordersPerClient;
+        public final BigDecimal averageOrdersPerClient;
+        public final List<ClientOrderCount> clientsAboveAverage;
+
+        public AdminDashboardData(List<VehicleUnusedOption> vehiclesNeverUsed,
+                                  List<ClientOrderCount> ordersPerClient,
+                                  BigDecimal averageOrdersPerClient,
+                                  List<ClientOrderCount> clientsAboveAverage) {
+            this.vehiclesNeverUsed = vehiclesNeverUsed;
+            this.ordersPerClient = ordersPerClient;
+            this.averageOrdersPerClient = averageOrdersPerClient;
+            this.clientsAboveAverage = clientsAboveAverage;
+        }
+    }
+
     public static final class ClientOption {
         public final long id;
         public final String nom;
@@ -239,5 +282,117 @@ public class PizzaService {
             }
         }
         throw new SQLException("Client introuvable: " + idClient);
+    }
+
+    public List<VehicleUnusedOption> listVehiclesNeverUsed() throws SQLException {
+        List<VehicleUnusedOption> vehicles = new ArrayList<>();
+        final String sql = """
+                SELECT v.id_vehicule,
+                       v.type_vehicule,
+                       COALESCE(v.immatriculation, '-') AS immatriculation,
+                       v.actif
+                FROM vehicule v
+                LEFT JOIN livreur l ON l.id_vehicule = v.id_vehicule
+                LEFT JOIN commande c ON c.id_livreur = l.id_livreur
+                GROUP BY v.id_vehicule, v.type_vehicule, v.immatriculation, v.actif
+                HAVING COUNT(c.id_commande) = 0
+                ORDER BY v.id_vehicule
+                """;
+        try (Connection cn = Database.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                vehicles.add(new VehicleUnusedOption(
+                        rs.getLong("id_vehicule"),
+                        rs.getString("type_vehicule"),
+                        rs.getString("immatriculation"),
+                        rs.getBoolean("actif")
+                ));
+            }
+        }
+        return vehicles;
+    }
+
+    public List<ClientOrderCount> listOrdersPerClient() throws SQLException {
+        List<ClientOrderCount> stats = new ArrayList<>();
+        final String sql = """
+                SELECT c.id_client, c.nom, COUNT(co.id_commande) AS nb_commandes
+                FROM client c
+                LEFT JOIN commande co ON co.id_client = c.id_client
+                GROUP BY c.id_client, c.nom
+                ORDER BY nb_commandes DESC, c.id_client
+                """;
+        try (Connection cn = Database.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                stats.add(new ClientOrderCount(
+                        rs.getLong("id_client"),
+                        rs.getString("nom"),
+                        rs.getLong("nb_commandes")
+                ));
+            }
+        }
+        return stats;
+    }
+
+    public BigDecimal getAverageOrdersPerClient() throws SQLException {
+        final String sql = """
+                SELECT ROUND(COALESCE(AVG(nb), 0), 2) AS moyenne_commandes
+                FROM (
+                    SELECT COUNT(*) AS nb
+                    FROM commande
+                    GROUP BY id_client
+                ) x
+                """;
+        try (Connection cn = Database.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) {
+                BigDecimal value = rs.getBigDecimal("moyenne_commandes");
+                return value != null ? value : BigDecimal.ZERO;
+            }
+        }
+        return BigDecimal.ZERO;
+    }
+
+    public List<ClientOrderCount> listClientsAboveAverage() throws SQLException {
+        List<ClientOrderCount> clients = new ArrayList<>();
+        final String sql = """
+                WITH stats AS (
+                    SELECT id_client, COUNT(*) AS nb
+                    FROM commande
+                    GROUP BY id_client
+                ),
+                moy AS (
+                    SELECT AVG(nb) AS moyenne FROM stats
+                )
+                SELECT c.id_client, c.nom, s.nb
+                FROM stats s
+                JOIN moy m ON s.nb > m.moyenne
+                JOIN client c ON c.id_client = s.id_client
+                ORDER BY s.nb DESC, c.id_client
+                """;
+        try (Connection cn = Database.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                clients.add(new ClientOrderCount(
+                        rs.getLong("id_client"),
+                        rs.getString("nom"),
+                        rs.getLong("nb")
+                ));
+            }
+        }
+        return clients;
+    }
+
+    public AdminDashboardData loadAdminDashboardData() throws SQLException {
+        return new AdminDashboardData(
+                listVehiclesNeverUsed(),
+                listOrdersPerClient(),
+                getAverageOrdersPerClient(),
+                listClientsAboveAverage()
+        );
     }
 }
