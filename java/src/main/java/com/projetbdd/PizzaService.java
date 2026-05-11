@@ -42,15 +42,30 @@ public class PizzaService {
         public final List<ClientOrderCount> ordersPerClient;
         public final BigDecimal averageOrdersPerClient;
         public final List<ClientOrderCount> clientsAboveAverage;
+        public final ClientOrderCount bestClient;
+        public final DelivererStats worstDeliverer;
+        public final PizzaStats mostOrderedPizza;
+        public final PizzaStats leastOrderedPizza;
+        public final IngredientStat favoriteIngredient;
 
         public AdminDashboardData(List<VehicleUnusedOption> vehiclesNeverUsed,
                                   List<ClientOrderCount> ordersPerClient,
                                   BigDecimal averageOrdersPerClient,
-                                  List<ClientOrderCount> clientsAboveAverage) {
+                                  List<ClientOrderCount> clientsAboveAverage,
+                                  ClientOrderCount bestClient,
+                                  DelivererStats worstDeliverer,
+                                  PizzaStats mostOrderedPizza,
+                                  PizzaStats leastOrderedPizza,
+                                  IngredientStat favoriteIngredient) {
             this.vehiclesNeverUsed = vehiclesNeverUsed;
             this.ordersPerClient = ordersPerClient;
             this.averageOrdersPerClient = averageOrdersPerClient;
             this.clientsAboveAverage = clientsAboveAverage;
+            this.bestClient = bestClient;
+            this.worstDeliverer = worstDeliverer;
+            this.mostOrderedPizza = mostOrderedPizza;
+            this.leastOrderedPizza = leastOrderedPizza;
+            this.favoriteIngredient = favoriteIngredient;
         }
     }
 
@@ -392,7 +407,209 @@ public class PizzaService {
                 listVehiclesNeverUsed(),
                 listOrdersPerClient(),
                 getAverageOrdersPerClient(),
-                listClientsAboveAverage()
+                listClientsAboveAverage(),
+                getBestClient(),
+                getWorstDeliverer(),
+                getMostOrderedPizza(),
+                getLeastOrderedPizza(),
+                getFavoriteIngredient()
         );
+    }
+
+    public static final class DelivererStats {
+        public final long idLivreur;
+        public final String nomLivreur;
+        public final long nbRetards;
+        public final String typeVehicule;
+        public final String immatriculation;
+
+        public DelivererStats(long idLivreur, String nomLivreur, long nbRetards, String typeVehicule, String immatriculation) {
+            this.idLivreur = idLivreur;
+            this.nomLivreur = nomLivreur;
+            this.nbRetards = nbRetards;
+            this.typeVehicule = typeVehicule;
+            this.immatriculation = immatriculation;
+        }
+    }
+
+    public static final class PizzaStats {
+        public final long idPizza;
+        public final String nomPizza;
+        public final long nbCommandes;
+
+        public PizzaStats(long idPizza, String nomPizza, long nbCommandes) {
+            this.idPizza = idPizza;
+            this.nomPizza = nomPizza;
+            this.nbCommandes = nbCommandes;
+        }
+    }
+
+    public static final class IngredientStat {
+        public final long idIngredient;
+        public final String nomIngredient;
+        public final long nbOccurrences;
+
+        public IngredientStat(long idIngredient, String nomIngredient, long nbOccurrences) {
+            this.idIngredient = idIngredient;
+            this.nomIngredient = nomIngredient;
+            this.nbOccurrences = nbOccurrences;
+        }
+    }
+
+    public ClientOrderCount getBestClient() throws SQLException {
+        final String sql = """
+                SELECT c.id_client, c.nom, COUNT(co.id_commande) AS nb_commandes
+                FROM client c
+                LEFT JOIN commande co ON co.id_client = c.id_client
+                GROUP BY c.id_client, c.nom
+                ORDER BY nb_commandes DESC
+                LIMIT 1
+                """;
+        try (Connection cn = Database.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) {
+                return new ClientOrderCount(
+                        rs.getLong("id_client"),
+                        rs.getString("nom"),
+                        rs.getLong("nb_commandes")
+                );
+            }
+        }
+        return null;
+    }
+
+    public DelivererStats getWorstDeliverer() throws SQLException {
+        final String sql = """
+                SELECT l.id_livreur, l.nom, 
+                       COUNT(CASE WHEN TIMESTAMPDIFF(MINUTE, c.date_commande, c.date_livraison_reelle) > 30 THEN 1 END) AS nb_retards,
+                       COALESCE(v.type_vehicule, 'N/A') AS type_vehicule,
+                       COALESCE(v.immatriculation, 'N/A') AS immatriculation
+                FROM livreur l
+                LEFT JOIN commande c ON c.id_livreur = l.id_livreur
+                LEFT JOIN vehicule v ON v.id_vehicule = l.id_vehicule
+                GROUP BY l.id_livreur, l.nom, v.type_vehicule, v.immatriculation
+                HAVING COUNT(CASE WHEN TIMESTAMPDIFF(MINUTE, c.date_commande, c.date_livraison_reelle) > 30 THEN 1 END) > 0
+                ORDER BY nb_retards DESC
+                LIMIT 1
+                """;
+        try (Connection cn = Database.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) {
+                return new DelivererStats(
+                        rs.getLong("id_livreur"),
+                        rs.getString("nom"),
+                        rs.getLong("nb_retards"),
+                        rs.getString("type_vehicule"),
+                        rs.getString("immatriculation")
+                );
+            }
+        }
+        return null;
+    }
+
+    public PizzaStats getMostOrderedPizza() throws SQLException {
+        final String sql = """
+                SELECT p.id_pizza, p.nom, COUNT(cl.id_ligne) AS nb_commandes
+                FROM pizza p
+                LEFT JOIN commande_ligne cl ON cl.id_pizza = p.id_pizza
+                GROUP BY p.id_pizza, p.nom
+                ORDER BY nb_commandes DESC
+                LIMIT 1
+                """;
+        try (Connection cn = Database.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) {
+                return new PizzaStats(
+                        rs.getLong("id_pizza"),
+                        rs.getString("nom"),
+                        rs.getLong("nb_commandes")
+                );
+            }
+        }
+        return null;
+    }
+
+    public PizzaStats getLeastOrderedPizza() throws SQLException {
+        final String sql = """
+                SELECT p.id_pizza, p.nom, COUNT(cl.id_ligne) AS nb_commandes
+                FROM pizza p
+                LEFT JOIN commande_ligne cl ON cl.id_pizza = p.id_pizza
+                GROUP BY p.id_pizza, p.nom
+                ORDER BY nb_commandes ASC
+                LIMIT 1
+                """;
+        try (Connection cn = Database.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) {
+                return new PizzaStats(
+                        rs.getLong("id_pizza"),
+                        rs.getString("nom"),
+                        rs.getLong("nb_commandes")
+                );
+            }
+        }
+        return null;
+    }
+
+    public IngredientStat getFavoriteIngredient() throws SQLException {
+        final String sql = """
+                SELECT i.id_ingredient, i.nom, COUNT(cl.id_ligne) AS nb_occurrences
+                FROM ingredient i
+                LEFT JOIN pizza_ingredient pi ON pi.id_ingredient = i.id_ingredient
+                LEFT JOIN commande_ligne cl ON cl.id_pizza = pi.id_pizza
+                GROUP BY i.id_ingredient, i.nom
+                ORDER BY nb_occurrences DESC
+                LIMIT 1
+                """;
+        try (Connection cn = Database.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) {
+                return new IngredientStat(
+                        rs.getLong("id_ingredient"),
+                        rs.getString("nom"),
+                        rs.getLong("nb_occurrences")
+                );
+            }
+        }
+        return null;
+    }
+
+    public static final class FidelityInfo {
+        public final long totalPizzas;
+        public final long pizzasUntilFree;
+        public final long nextFreeNumber;
+
+        public FidelityInfo(long totalPizzas, long pizzasUntilFree, long nextFreeNumber) {
+            this.totalPizzas = totalPizzas;
+            this.pizzasUntilFree = pizzasUntilFree;
+            this.nextFreeNumber = nextFreeNumber;
+        }
+    }
+
+    public FidelityInfo getFidelityInfo(long idClient) throws SQLException {
+        final String sql = """
+                SELECT COALESCE(SUM(cl.quantite), 0) AS total
+                FROM commande c
+                JOIN commande_ligne cl ON cl.id_commande = c.id_commande
+                WHERE c.id_client = ?
+                """;
+        try (Connection cn = Database.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sql)) {
+            ps.setLong(1, idClient);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    long totalPizzas = rs.getLong("total");
+                    long nextFreeNumber = ((totalPizzas / 10) + 1) * 10;
+                    long pizzasUntilFree = nextFreeNumber - totalPizzas;
+                    return new FidelityInfo(totalPizzas, pizzasUntilFree, nextFreeNumber);
+                }
+            }
+        }
+        return new FidelityInfo(0, 10, 10);
     }
 }

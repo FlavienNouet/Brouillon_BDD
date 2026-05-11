@@ -60,6 +60,7 @@ public class MainFrame extends JFrame {
 
     private final JLabel pizzaDetailsLabel = new JLabel("Selectionne une pizza pour voir les ingredients.");
     private final JLabel panierTotalLabel = new JLabel("Total estime panier: 0.00 EUR");
+    private final JLabel fidelityLabel = new JLabel("Chargement...");
 
     private final DefaultListModel<CartLine> cartModel = new DefaultListModel<>();
     private final JList<CartLine> cartList = new JList<>(cartModel);
@@ -100,6 +101,12 @@ public class MainFrame extends JFrame {
             return false;
         }
     };
+
+    private final JLabel bestClientLabel = new JLabel("Aucun");
+    private final JLabel worstDelivererLabel = new JLabel("Aucun");
+    private final JLabel mostOrderedPizzaLabel = new JLabel("Aucune");
+    private final JLabel leastOrderedPizzaLabel = new JLabel("Aucune");
+    private final JLabel favoriteIngredientLabel = new JLabel("Aucun");
 
     private final JTextField montantRechargeField = new JTextField("20.00");
     private final JTextField minutesLivraisonField = new JTextField("25");
@@ -271,6 +278,14 @@ public class MainFrame extends JFrame {
         JPanel right = new JPanel();
         right.setOpaque(false);
         right.setLayout(new BoxLayout(right, BoxLayout.Y_AXIS));
+        
+        JPanel fidelityCard = buildCard("Programme de fidelite");
+        fidelityLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        fidelityLabel.setForeground(new Color(236, 143, 25));
+        fidelityCard.add(fidelityLabel, BorderLayout.CENTER);
+        right.add(fidelityCard);
+        right.add(Box.createVerticalStrut(10));
+        
         right.add(cartCard);
         right.add(Box.createVerticalStrut(10));
 
@@ -729,6 +744,7 @@ public class MainFrame extends JFrame {
             long idCommande = service.passerCommande(session.getIdClient(), livreur.id, json, minutes);
             showOutput("Commande creee: " + idCommande + " | Livreur: " + livreur.nom);
             clearCart();
+            refreshFidelityLabel();
             JOptionPane.showMessageDialog(this, "Commande creee: " + idCommande);
         } catch (Exception ex) {
             showOutput("Erreur commande: " + ex.getMessage());
@@ -1002,6 +1018,14 @@ public class MainFrame extends JFrame {
         metricsRow.add(buildMetricCard("Clients au-dessus moyenne", aboveAverageValueLabel, new Color(0, 159, 117)));
         metricsRow.add(buildMetricCard("Clients commandant", totalClientsValueLabel, new Color(98, 84, 177)));
 
+        JPanel statsRow = new JPanel(new GridLayout(1, 5, 10, 10));
+        statsRow.setOpaque(false);
+        statsRow.add(buildMetricCard("👥 Meilleur client", bestClientLabel, new Color(255, 193, 7)));
+        statsRow.add(buildMetricCard("🚚 Plus mauvais livreur", worstDelivererLabel, new Color(244, 67, 54)));
+        statsRow.add(buildMetricCard("🍕 Pizza + demandée", mostOrderedPizzaLabel, new Color(76, 175, 80)));
+        statsRow.add(buildMetricCard("🍕 Pizza - demandée", leastOrderedPizzaLabel, new Color(158, 158, 158)));
+        statsRow.add(buildMetricCard("🌶️ Ingrédient favori", favoriteIngredientLabel, new Color(233, 30, 99)));
+
         JTable vehiclesTable = buildReportTable(vehiclesTableModel);
         JTable ordersTable = buildReportTable(ordersTableModel);
         JTable aboveAverageTable = buildReportTable(aboveAverageTableModel);
@@ -1023,7 +1047,15 @@ public class MainFrame extends JFrame {
 
         JPanel center = new JPanel(new BorderLayout(12, 12));
         center.setOpaque(false);
-        center.add(metricsRow, BorderLayout.NORTH);
+        
+        JPanel allMetrics = new JPanel();
+        allMetrics.setOpaque(false);
+        allMetrics.setLayout(new BoxLayout(allMetrics, BoxLayout.Y_AXIS));
+        allMetrics.add(metricsRow);
+        allMetrics.add(Box.createVerticalStrut(8));
+        allMetrics.add(statsRow);
+        
+        center.add(allMetrics, BorderLayout.NORTH);
         center.add(cards, BorderLayout.CENTER);
 
         tab.add(dashTop, BorderLayout.NORTH);
@@ -1087,6 +1119,38 @@ public class MainFrame extends JFrame {
         averageOrdersValueLabel.setText(data.averageOrdersPerClient.toPlainString());
         aboveAverageValueLabel.setText(String.valueOf(data.clientsAboveAverage.size()));
         totalClientsValueLabel.setText(String.valueOf(data.ordersPerClient.size()));
+        
+        if (data.bestClient != null) {
+            bestClientLabel.setText(data.bestClient.nom + " (" + data.bestClient.nbCommandes + " cmd)");
+        } else {
+            bestClientLabel.setText("Aucun");
+        }
+        
+        if (data.worstDeliverer != null) {
+            worstDelivererLabel.setText(data.worstDeliverer.nomLivreur + " (" + data.worstDeliverer.nbRetards + " retards - " 
+                    + data.worstDeliverer.typeVehicule + ")");
+        } else {
+            worstDelivererLabel.setText("Aucun");
+        }
+        
+        if (data.mostOrderedPizza != null) {
+            mostOrderedPizzaLabel.setText(data.mostOrderedPizza.nomPizza + " (" + data.mostOrderedPizza.nbCommandes + " cmd)");
+        } else {
+            mostOrderedPizzaLabel.setText("Aucune");
+        }
+        
+        if (data.leastOrderedPizza != null) {
+            leastOrderedPizzaLabel.setText(data.leastOrderedPizza.nomPizza + " (" + data.leastOrderedPizza.nbCommandes + " cmd)");
+        } else {
+            leastOrderedPizzaLabel.setText("Aucune");
+        }
+        
+        if (data.favoriteIngredient != null) {
+            favoriteIngredientLabel.setText(data.favoriteIngredient.nomIngredient + " (" + data.favoriteIngredient.nbOccurrences + " fois)");
+        } else {
+            favoriteIngredientLabel.setText("Aucun");
+        }
+        
         showOutput("Dashboard admin rafraichi.");
     }
 
@@ -1096,6 +1160,11 @@ public class MainFrame extends JFrame {
             averageOrdersValueLabel.setText("...");
             aboveAverageValueLabel.setText("...");
             totalClientsValueLabel.setText("...");
+            bestClientLabel.setText("...");
+            worstDelivererLabel.setText("...");
+            mostOrderedPizzaLabel.setText("...");
+            leastOrderedPizzaLabel.setText("...");
+            favoriteIngredientLabel.setText("...");
         }
     }
 
@@ -1104,6 +1173,11 @@ public class MainFrame extends JFrame {
         averageOrdersValueLabel.setText("Erreur");
         aboveAverageValueLabel.setText("Erreur");
         totalClientsValueLabel.setText("Erreur");
+        bestClientLabel.setText("Erreur");
+        worstDelivererLabel.setText("Erreur");
+        mostOrderedPizzaLabel.setText("Erreur");
+        leastOrderedPizzaLabel.setText("Erreur");
+        favoriteIngredientLabel.setText("Erreur");
         JOptionPane.showMessageDialog(this, message, "Erreur dashboard", JOptionPane.ERROR_MESSAGE);
         showOutput(message);
     }
@@ -1228,10 +1302,26 @@ public class MainFrame extends JFrame {
             }
 
             refreshPizzaDetails();
+            refreshFidelityLabel();
             showOutput("Donnees rechargees. Tu peux maintenant choisir client, livreur, pizza et taille.");
         } catch (SQLException ex) {
             showOutput("Erreur chargement donnees: " + ex.getMessage());
             JOptionPane.showMessageDialog(this, ex.getMessage(), "Erreur", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void refreshFidelityLabel() {
+        if (!session.isClient()) {
+            return;
+        }
+        try {
+            PizzaService.FidelityInfo fidelity = service.getFidelityInfo(session.getIdClient());
+            fidelityLabel.setText(
+                String.format("Pizzas achetees: %d | Encore %d avant une gratuite! 🎉 (prochain bonus à %d)",
+                    fidelity.totalPizzas, fidelity.pizzasUntilFree, fidelity.nextFreeNumber)
+            );
+        } catch (SQLException ex) {
+            fidelityLabel.setText("Erreur chargement fidelite: " + ex.getMessage());
         }
     }
 
