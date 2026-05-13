@@ -17,7 +17,7 @@ CREATE TABLE client (
     id_client BIGINT AUTO_INCREMENT PRIMARY KEY,
     nom VARCHAR(100) NOT NULL,
     email VARCHAR(150) NOT NULL UNIQUE,
-    date_abonnement DATE NOT NULL DEFAULT CURDATE(),
+    date_abonnement DATE NOT NULL DEFAULT (CURRENT_DATE),
     solde DECIMAL(10,2) NOT NULL DEFAULT 0 CHECK (solde >= 0)
 );
 
