@@ -17,8 +17,10 @@ import javax.swing.JSpinner;
 import javax.swing.JTabbedPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.JProgressBar;
 import javax.swing.RowFilter;
 import javax.swing.SwingWorker;
+import javax.swing.Timer;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -73,6 +75,11 @@ public class MainFrame extends JFrame {
     private final JLabel pizzaDetailsLabel = new JLabel("Selectionne une pizza pour voir les ingredients.");
     private final JLabel panierTotalLabel = new JLabel("Total estime panier: 0.00 EUR");
     private final JLabel fidelityLabel = new JLabel("Chargement...");
+    private final JLabel trackingStateLabel = new JLabel("Aucune commande en cours.");
+    private final JLabel trackingEtaLabel = new JLabel("ETA: -");
+    private final JLabel trackingOrderLabel = new JLabel("Commande: -");
+    private final JProgressBar trackingProgressBar = new JProgressBar(0, 100);
+    private Timer clientTrackingTimer;
 
     private final DefaultListModel<CartLine> cartModel = new DefaultListModel<>();
     private final JList<CartLine> cartList = new JList<>(cartModel);
@@ -292,6 +299,29 @@ public class MainFrame extends JFrame {
         JPanel right = new JPanel();
         right.setOpaque(false);
         right.setLayout(new BoxLayout(right, BoxLayout.Y_AXIS));
+
+        JPanel trackingCard = buildCard("Suivi commande");
+        trackingStateLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        trackingStateLabel.setForeground(new Color(29, 44, 78));
+        trackingEtaLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        trackingOrderLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        trackingProgressBar.setStringPainted(true);
+        trackingProgressBar.setValue(0);
+        trackingProgressBar.setString("0%");
+
+        JPanel trackingContent = new JPanel();
+        trackingContent.setOpaque(false);
+        trackingContent.setLayout(new BoxLayout(trackingContent, BoxLayout.Y_AXIS));
+        trackingContent.add(trackingOrderLabel);
+        trackingContent.add(Box.createVerticalStrut(6));
+        trackingContent.add(trackingStateLabel);
+        trackingContent.add(Box.createVerticalStrut(6));
+        trackingContent.add(trackingEtaLabel);
+        trackingContent.add(Box.createVerticalStrut(8));
+        trackingContent.add(trackingProgressBar);
+        trackingCard.add(trackingContent, BorderLayout.CENTER);
+        right.add(trackingCard);
+        right.add(Box.createVerticalStrut(10));
         
         JPanel fidelityCard = buildCard("Programme de fidelite");
         fidelityLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
@@ -324,6 +354,8 @@ public class MainFrame extends JFrame {
 
         pizzaCombo.addActionListener(e -> refreshPizzaDetails());
         tailleCombo.addActionListener(e -> refreshPizzaDetails());
+
+        startClientTrackingTimer();
 
         return tab;
     }
@@ -660,83 +692,119 @@ public class MainFrame extends JFrame {
         tab.setBorder(new EmptyBorder(14, 14, 14, 14));
         tab.setBackground(new Color(243, 246, 251));
 
-        JPanel ordersCard = buildCard("Commandes en attente de livraison");
-        JTextArea ordersArea = new JTextArea();
-        ordersArea.setEditable(false);
-        ordersArea.setFont(new Font("Monospaced", Font.PLAIN, 11));
-        ordersArea.setBackground(new Color(249, 251, 254));
-        ordersArea.setText("Chargement...");
-
-        JScrollPane ordersScroll = new JScrollPane(ordersArea);
+        JPanel ordersCard = buildCard("Workflow livraison");
+        DefaultTableModel deliveryModel = new DefaultTableModel(
+                new Object[]{"Commande", "Client", "Etat", "Date commande", "Prise en charge", "ETA (min)"},
+                0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        JTable deliveryTable = buildReportTable(deliveryModel);
+        JScrollPane ordersScroll = new JScrollPane(deliveryTable);
         ordersScroll.setBorder(BorderFactory.createLineBorder(new Color(208, 216, 229)));
         ordersCard.add(ordersScroll, BorderLayout.CENTER);
+
+        JLabel selectedLabel = new JLabel("Selection: aucune commande");
+        selectedLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        selectedLabel.setForeground(new Color(49, 66, 100));
+
+        deliveryTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                int row = deliveryTable.getSelectedRow();
+                if (row >= 0) {
+                    int modelRow = deliveryTable.convertRowIndexToModel(row);
+                    Object id = deliveryModel.getValueAt(modelRow, 0);
+                    Object etat = deliveryModel.getValueAt(modelRow, 2);
+                    selectedLabel.setText("Selection: commande #" + id + " (" + etat + ")");
+                } else {
+                    selectedLabel.setText("Selection: aucune commande");
+                }
+            }
+        });
 
         JButton refreshBtn = new JButton("Rafraichir");
         stylePrimaryButton(refreshBtn, new Color(98, 84, 177));
         
-        JButton validateBtn = new JButton("✅ Marquer comme livré");
-        stylePrimaryButton(validateBtn, new Color(76, 175, 80));
-        
-        JTextField commandeIdField = new JTextField(10);
-        commandeIdField.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        
-        validateBtn.addActionListener(e -> {
-            String idStr = JOptionPane.showInputDialog(this, 
-                    "Numéro de commande livrée:", 
-                    "Valider livraison", 
-                    JOptionPane.QUESTION_MESSAGE);
-            
-            if (idStr != null && !idStr.trim().isEmpty()) {
-                try {
-                    long idCommande = Long.parseLong(idStr.trim());
-                    String result = service.validateDelivery(idCommande);
-                    
-                    JOptionPane.showMessageDialog(this, result, "Résultat", 
-                            result.contains("RETARD") ? JOptionPane.WARNING_MESSAGE : JOptionPane.INFORMATION_MESSAGE);
-                    
-                    showOutput("Livraison validée: " + result);
-                    refreshBtn.doClick();
-                } catch (NumberFormatException ex) {
-                    JOptionPane.showMessageDialog(this, "Veuillez entrer un numéro valide", "Erreur", JOptionPane.ERROR_MESSAGE);
-                } catch (SQLException ex) {
-                    JOptionPane.showMessageDialog(this, "Erreur: " + ex.getMessage(), "Erreur", JOptionPane.ERROR_MESSAGE);
-                    showOutput("Erreur validation livraison: " + ex.getMessage());
-                }
+        JButton takeInChargeBtn = new JButton("Prendre en charge");
+        stylePrimaryButton(takeInChargeBtn, new Color(236, 143, 25));
+
+        JButton deliveredBtn = new JButton("Marquer livree");
+        stylePrimaryButton(deliveredBtn, new Color(76, 175, 80));
+
+        takeInChargeBtn.addActionListener(e -> {
+            int row = deliveryTable.getSelectedRow();
+            if (row < 0) {
+                JOptionPane.showMessageDialog(this, "Selectionne une commande.", "Info", JOptionPane.INFORMATION_MESSAGE);
+                return;
+            }
+            int modelRow = deliveryTable.convertRowIndexToModel(row);
+            long idCommande = ((Number) deliveryModel.getValueAt(modelRow, 0)).longValue();
+            String statut = String.valueOf(deliveryModel.getValueAt(modelRow, 2));
+
+            if (!"preparee".equals(statut)) {
+                JOptionPane.showMessageDialog(this, "La commande doit etre en etat preparee.", "Info", JOptionPane.INFORMATION_MESSAGE);
+                return;
+            }
+
+            try {
+                service.prendreEnChargeCommande(idCommande, session.getIdLivreur());
+                showOutput("Commande #" + idCommande + " prise en charge.");
+                refreshBtn.doClick();
+            } catch (SQLException ex) {
+                showOutput("Erreur prise en charge: " + ex.getMessage());
+                JOptionPane.showMessageDialog(this, ex.getMessage(), "Erreur", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        deliveredBtn.addActionListener(e -> {
+            int row = deliveryTable.getSelectedRow();
+            if (row < 0) {
+                JOptionPane.showMessageDialog(this, "Selectionne une commande.", "Info", JOptionPane.INFORMATION_MESSAGE);
+                return;
+            }
+            int modelRow = deliveryTable.convertRowIndexToModel(row);
+            long idCommande = ((Number) deliveryModel.getValueAt(modelRow, 0)).longValue();
+            String statut = String.valueOf(deliveryModel.getValueAt(modelRow, 2));
+
+            if (!"en_livraison".equals(statut)) {
+                JOptionPane.showMessageDialog(this, "La commande doit etre en etat en_livraison.", "Info", JOptionPane.INFORMATION_MESSAGE);
+                return;
+            }
+
+            try {
+                service.livrerCommande(idCommande, session.getIdLivreur());
+                showOutput("Commande #" + idCommande + " livree.");
+                refreshBtn.doClick();
+            } catch (SQLException ex) {
+                showOutput("Erreur livraison: " + ex.getMessage());
+                JOptionPane.showMessageDialog(this, ex.getMessage(), "Erreur", JOptionPane.ERROR_MESSAGE);
             }
         });
         
         refreshBtn.addActionListener(e -> {
             new Thread(() -> {
                 try {
-                    StringBuilder sb = new StringBuilder();
-                    try (Connection cn = Database.getConnection();
-                         Statement st = cn.createStatement()) {
-                        try (ResultSet rs = st.executeQuery(
-                                "SELECT c.id_commande, c.date_commande, cl.nom, c.date_livraison_prevue, c.statut, " +
-                                "TIMESTAMPDIFF(MINUTE, c.date_commande, NOW()) AS minutesEcoulees " +
-                                "FROM commande c JOIN client cl ON c.id_client = cl.id_client " +
-                                "WHERE c.id_livreur = " + session.getIdLivreur() + " AND c.statut IN ('cree', 'preparee')" +
-                                " ORDER BY c.date_livraison_prevue")) {
-                            if (!rs.isBeforeFirst()) {
-                                sb.append("Aucune commande en attente de livraison.");
-                            } else {
-                                while (rs.next()) {
-                                    long minutesEcoulees = rs.getLong("minutesEcoulees");
-                                    String alert = minutesEcoulees > 30 ? " ⚠️ RETARD!" : "";
-                                    sb.append("Commande #").append(rs.getLong("id_commande"))
-                                            .append(" | Client: ").append(rs.getString("nom"))
-                                            .append(" | Temps écoulé: ").append(minutesEcoulees).append(" min")
-                                            .append(" | Prévue: ").append(rs.getTimestamp("date_livraison_prevue"))
-                                            .append(alert)
-                                            .append("\n");
-                                }
-                            }
+                    List<PizzaService.DelivererOrderState> orders = service.listDelivererOrders(session.getIdLivreur());
+                    SwingUtilities.invokeLater(() -> {
+                        deliveryModel.setRowCount(0);
+                        for (PizzaService.DelivererOrderState order : orders) {
+                            deliveryModel.addRow(new Object[]{
+                                    order.idCommande,
+                                    order.nomClient,
+                                    order.statut,
+                                    order.dateCommande,
+                                    order.datePriseEnCharge != null ? order.datePriseEnCharge : "-",
+                                    order.etaMinutes
+                            });
                         }
-                    }
-                    final String result = sb.toString();
-                    SwingUtilities.invokeLater(() -> ordersArea.setText(result));
+                        if (!orders.isEmpty()) {
+                            deliveryTable.setRowSelectionInterval(0, 0);
+                        }
+                    });
                 } catch (Exception ex) {
-                    SwingUtilities.invokeLater(() -> ordersArea.setText("Erreur: " + ex.getMessage()));
+                    SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, ex.getMessage(), "Erreur", JOptionPane.ERROR_MESSAGE));
                 }
             }).start();
         });
@@ -745,8 +813,10 @@ public class MainFrame extends JFrame {
         top.setOpaque(false);
         JPanel topRight = new JPanel();
         topRight.setOpaque(false);
-        topRight.add(validateBtn);
+        topRight.add(takeInChargeBtn);
+        topRight.add(deliveredBtn);
         topRight.add(refreshBtn);
+        top.add(selectedLabel, BorderLayout.WEST);
         top.add(topRight, BorderLayout.EAST);
 
         tab.add(top, BorderLayout.NORTH);
@@ -1154,10 +1224,111 @@ public class MainFrame extends JFrame {
             showOutput("Commande creee: " + idCommande + " | Livreur assigné: " + livreur.nom + " (" + livreur.typeVehicule + ")");
             clearCart();
             refreshFidelityLabel();
+            refreshClientTracking();
             JOptionPane.showMessageDialog(this, "Commande creee!\n\nNuméro: " + idCommande + "\nLivreur: " + livreur.nom + "\nVéhicule: " + livreur.typeVehicule);
         } catch (Exception ex) {
             showOutput("Erreur commande: " + ex.getMessage());
             JOptionPane.showMessageDialog(this, ex.getMessage(), "Erreur", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void startClientTrackingTimer() {
+        if (!session.isClient()) {
+            return;
+        }
+
+        if (clientTrackingTimer != null) {
+            clientTrackingTimer.stop();
+        }
+
+        clientTrackingTimer = new Timer(5000, e -> refreshClientTracking());
+        clientTrackingTimer.setInitialDelay(0);
+        clientTrackingTimer.start();
+    }
+
+    private void refreshClientTracking() {
+        if (!session.isClient()) {
+            return;
+        }
+
+        new SwingWorker<PizzaService.ClientOrderTracking, Void>() {
+            @Override
+            protected PizzaService.ClientOrderTracking doInBackground() throws Exception {
+                return service.getClientLatestOrderTracking(session.getIdClient());
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    PizzaService.ClientOrderTracking tracking = get();
+                    updateTrackingUI(tracking);
+                } catch (Exception ex) {
+                    trackingOrderLabel.setText("Commande: erreur");
+                    trackingStateLabel.setText("Impossible de charger le suivi");
+                    trackingEtaLabel.setText("ETA: -");
+                    trackingProgressBar.setValue(0);
+                    trackingProgressBar.setString("0%");
+                }
+            }
+        }.execute();
+    }
+
+    private void updateTrackingUI(PizzaService.ClientOrderTracking tracking) {
+        if (tracking == null || tracking.idCommande == null || tracking.statut == null) {
+            trackingOrderLabel.setText("Commande: -");
+            trackingStateLabel.setText("Aucune commande en cours.");
+            trackingEtaLabel.setText("ETA: -");
+            trackingProgressBar.setValue(0);
+            trackingProgressBar.setString("0%");
+            return;
+        }
+
+        trackingOrderLabel.setText("Commande: #" + tracking.idCommande);
+        trackingStateLabel.setText("Etat: " + toReadableStatus(tracking.statut));
+
+        int progress;
+        switch (tracking.statut) {
+            case "cree":
+                progress = 15;
+                break;
+            case "preparee":
+                progress = 40;
+                break;
+            case "en_livraison":
+                progress = 75;
+                break;
+            case "livree":
+                progress = 100;
+                break;
+            default:
+                progress = 0;
+                break;
+        }
+
+        trackingProgressBar.setValue(progress);
+        trackingProgressBar.setString(progress + "%");
+
+        if ("livree".equals(tracking.statut)) {
+            trackingEtaLabel.setText("ETA: Livree a " + (tracking.dateLivree != null ? tracking.dateLivree : "-") );
+        } else {
+            trackingEtaLabel.setText("ETA dynamique: " + tracking.etaMinutes + " min | Prevue: " + tracking.datePrevue);
+        }
+    }
+
+    private String toReadableStatus(String status) {
+        switch (status) {
+            case "cree":
+                return "Creee";
+            case "preparee":
+                return "En preparation";
+            case "en_livraison":
+                return "En livraison";
+            case "livree":
+                return "Livree";
+            case "refusee":
+                return "Refusee";
+            default:
+                return status;
         }
     }
 

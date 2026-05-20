@@ -259,12 +259,82 @@ BEGIN
         VALUES (p_id_client, 'debit_commande', v_total, CONCAT('Debitage commande ', p_id_commande));
         
         UPDATE commande
-        SET date_livraison_reelle = DATE_ADD(date_commande, INTERVAL p_minutes_livraison MINUTE),
-            statut = 'livree'
+        SET date_livraison_prevue = DATE_ADD(date_commande, INTERVAL p_minutes_livraison MINUTE),
+            statut = 'preparee'
         WHERE id_commande = p_id_commande;
         
         COMMIT;
     END IF;
+END$$
+
+DROP PROCEDURE IF EXISTS fn_prendre_en_charge_commande$$
+
+CREATE PROCEDURE fn_prendre_en_charge_commande(
+    IN p_id_commande BIGINT,
+    IN p_id_livreur BIGINT
+)
+MODIFIES SQL DATA
+BEGIN
+    DECLARE v_current_status VARCHAR(20);
+    DECLARE v_assigned_livreur BIGINT;
+
+    SELECT statut, id_livreur
+    INTO v_current_status, v_assigned_livreur
+    FROM commande
+    WHERE id_commande = p_id_commande
+    FOR UPDATE;
+
+    IF v_current_status IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Commande introuvable';
+    END IF;
+
+    IF v_assigned_livreur <> p_id_livreur THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Livreur non assigne a cette commande';
+    END IF;
+
+    IF v_current_status <> 'preparee' THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'La commande doit etre en etat preparee';
+    END IF;
+
+    UPDATE commande
+    SET statut = 'en_livraison',
+        date_prise_en_charge = NOW()
+    WHERE id_commande = p_id_commande;
+END$$
+
+DROP PROCEDURE IF EXISTS fn_livrer_commande$$
+
+CREATE PROCEDURE fn_livrer_commande(
+    IN p_id_commande BIGINT,
+    IN p_id_livreur BIGINT
+)
+MODIFIES SQL DATA
+BEGIN
+    DECLARE v_current_status VARCHAR(20);
+    DECLARE v_assigned_livreur BIGINT;
+
+    SELECT statut, id_livreur
+    INTO v_current_status, v_assigned_livreur
+    FROM commande
+    WHERE id_commande = p_id_commande
+    FOR UPDATE;
+
+    IF v_current_status IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Commande introuvable';
+    END IF;
+
+    IF v_assigned_livreur <> p_id_livreur THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Livreur non assigne a cette commande';
+    END IF;
+
+    IF v_current_status <> 'en_livraison' THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'La commande doit etre en etat en_livraison';
+    END IF;
+
+    UPDATE commande
+    SET statut = 'livree',
+        date_livraison_reelle = NOW()
+    WHERE id_commande = p_id_commande;
 END$$
 
 DELIMITER ;

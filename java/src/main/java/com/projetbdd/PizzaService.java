@@ -252,7 +252,7 @@ public class PizzaService {
                 WHERE l.id_livreur NOT IN (
                     SELECT DISTINCT id_livreur
                     FROM commande
-                    WHERE statut IN ('cree', 'preparee')
+                    WHERE statut IN ('cree', 'preparee', 'en_livraison')
                 )
                 ORDER BY l.id_livreur
                 """;
@@ -688,6 +688,148 @@ public class PizzaService {
         }
     }
 
+    public static final class DelivererOrderState {
+        public final long idCommande;
+        public final String nomClient;
+        public final String statut;
+        public final String dateCommande;
+        public final String datePrevue;
+        public final String datePriseEnCharge;
+        public final long etaMinutes;
+
+        public DelivererOrderState(long idCommande,
+                                   String nomClient,
+                                   String statut,
+                                   String dateCommande,
+                                   String datePrevue,
+                                   String datePriseEnCharge,
+                                   long etaMinutes) {
+            this.idCommande = idCommande;
+            this.nomClient = nomClient;
+            this.statut = statut;
+            this.dateCommande = dateCommande;
+            this.datePrevue = datePrevue;
+            this.datePriseEnCharge = datePriseEnCharge;
+            this.etaMinutes = etaMinutes;
+        }
+    }
+
+    public static final class ClientOrderTracking {
+        public final Long idCommande;
+        public final String statut;
+        public final String dateCommande;
+        public final String datePrevue;
+        public final String datePriseEnCharge;
+        public final String dateLivree;
+        public final long etaMinutes;
+
+        public ClientOrderTracking(Long idCommande,
+                                   String statut,
+                                   String dateCommande,
+                                   String datePrevue,
+                                   String datePriseEnCharge,
+                                   String dateLivree,
+                                   long etaMinutes) {
+            this.idCommande = idCommande;
+            this.statut = statut;
+            this.dateCommande = dateCommande;
+            this.datePrevue = datePrevue;
+            this.datePriseEnCharge = datePriseEnCharge;
+            this.dateLivree = dateLivree;
+            this.etaMinutes = etaMinutes;
+        }
+    }
+
+    public List<DelivererOrderState> listDelivererOrders(long idLivreur) throws SQLException {
+        List<DelivererOrderState> orders = new ArrayList<>();
+        final String sql = """
+                SELECT c.id_commande,
+                       cl.nom AS nom_client,
+                       c.statut,
+                       DATE_FORMAT(c.date_commande, '%Y-%m-%d %H:%i') AS date_commande,
+                       DATE_FORMAT(c.date_livraison_prevue, '%Y-%m-%d %H:%i') AS date_prevue,
+                       DATE_FORMAT(c.date_prise_en_charge, '%Y-%m-%d %H:%i') AS date_prise_en_charge,
+                       GREATEST(TIMESTAMPDIFF(MINUTE, NOW(), c.date_livraison_prevue), 0) AS eta_minutes
+                FROM commande c
+                JOIN client cl ON cl.id_client = c.id_client
+                WHERE c.id_livreur = ?
+                  AND c.statut IN ('preparee', 'en_livraison')
+                ORDER BY c.date_commande ASC
+                """;
+        try (Connection cn = Database.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sql)) {
+            ps.setLong(1, idLivreur);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    orders.add(new DelivererOrderState(
+                            rs.getLong("id_commande"),
+                            rs.getString("nom_client"),
+                            rs.getString("statut"),
+                            rs.getString("date_commande"),
+                            rs.getString("date_prevue"),
+                            rs.getString("date_prise_en_charge"),
+                            rs.getLong("eta_minutes")
+                    ));
+                }
+            }
+        }
+        return orders;
+    }
+
+    public void prendreEnChargeCommande(long idCommande, long idLivreur) throws SQLException {
+        final String sql = "CALL fn_prendre_en_charge_commande(?, ?)";
+        try (Connection cn = Database.getConnection();
+             CallableStatement cs = cn.prepareCall(sql)) {
+            cs.setLong(1, idCommande);
+            cs.setLong(2, idLivreur);
+            cs.execute();
+        }
+    }
+
+    public void livrerCommande(long idCommande, long idLivreur) throws SQLException {
+        final String sql = "CALL fn_livrer_commande(?, ?)";
+        try (Connection cn = Database.getConnection();
+             CallableStatement cs = cn.prepareCall(sql)) {
+            cs.setLong(1, idCommande);
+            cs.setLong(2, idLivreur);
+            cs.execute();
+        }
+    }
+
+    public ClientOrderTracking getClientLatestOrderTracking(long idClient) throws SQLException {
+        final String sql = """
+                SELECT c.id_commande,
+                       c.statut,
+                       DATE_FORMAT(c.date_commande, '%Y-%m-%d %H:%i') AS date_commande,
+                       DATE_FORMAT(c.date_livraison_prevue, '%Y-%m-%d %H:%i') AS date_prevue,
+                       DATE_FORMAT(c.date_prise_en_charge, '%Y-%m-%d %H:%i') AS date_prise_en_charge,
+                       DATE_FORMAT(c.date_livraison_reelle, '%Y-%m-%d %H:%i') AS date_livree,
+                       GREATEST(TIMESTAMPDIFF(MINUTE, NOW(), c.date_livraison_prevue), 0) AS eta_minutes
+                FROM commande c
+                WHERE c.id_client = ?
+                ORDER BY c.date_commande DESC
+                LIMIT 1
+                """;
+        try (Connection cn = Database.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sql)) {
+            ps.setLong(1, idClient);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return new ClientOrderTracking(
+                            rs.getLong("id_commande"),
+                            rs.getString("statut"),
+                            rs.getString("date_commande"),
+                            rs.getString("date_prevue"),
+                            rs.getString("date_prise_en_charge"),
+                            rs.getString("date_livree"),
+                            rs.getLong("eta_minutes")
+                    );
+                }
+            }
+        }
+        return new ClientOrderTracking(null, null, null, null, null, null, 0);
+    }
+
     public List<DeliverySlip> getDeliverySlips(long idLivreur) throws SQLException {
         List<DeliverySlip> slips = new ArrayList<>();
         final String sql = """
@@ -820,69 +962,6 @@ public class PizzaService {
     }
 
     public String validateDelivery(long idCommande) throws SQLException {
-        final String sqlGetOrder = """
-                SELECT c.id_commande, c.id_client, c.date_commande, c.date_livraison_prevue,
-                       TIMESTAMPDIFF(MINUTE, c.date_commande, NOW()) AS minutesEcoulees,
-                       COALESCE(SUM(CASE WHEN cld.est_gratuite = 0 THEN cld.quantite * cld.prix_unitaire_base ELSE 0 END), 0) AS montantPayé
-                FROM commande c
-                LEFT JOIN commande_ligne cld ON cld.id_commande = c.id_commande
-                WHERE c.id_commande = ?
-                GROUP BY c.id_commande, c.id_client, c.date_commande, c.date_livraison_prevue
-                """;
-        
-        try (Connection cn = Database.getConnection();
-             PreparedStatement ps = cn.prepareStatement(sqlGetOrder)) {
-            ps.setLong(1, idCommande);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next()) {
-                    throw new SQLException("Commande non trouvée: " + idCommande);
-                }
-                
-                long idClient = rs.getLong("id_client");
-                long minutesEcoulees = rs.getLong("minutesEcoulees");
-                BigDecimal montantPayé = rs.getBigDecimal("montantPayé");
-                
-                String result = "";
-                
-                if (minutesEcoulees > 30) {
-                    // Pizza en retard > 30 min = gratuite + remboursement
-                    final String sqlUpdateLines = "UPDATE commande_ligne SET est_gratuite = 1, prix_facture = 0 WHERE id_commande = ? AND est_gratuite = 0";
-                    try (PreparedStatement psUpdate = cn.prepareStatement(sqlUpdateLines)) {
-                        psUpdate.setLong(1, idCommande);
-                        psUpdate.executeUpdate();
-                    }
-                    
-                    // Ajouter transaction de remboursement
-                    final String sqlRefund = "INSERT INTO compte_transaction (id_client, type_transaction, montant, commentaire) VALUES (?, 'remboursement_retard', ?, CONCAT('Retard livraison commande #', ?))";
-                    try (PreparedStatement psRefund = cn.prepareStatement(sqlRefund)) {
-                        psRefund.setLong(1, idClient);
-                        psRefund.setBigDecimal(2, montantPayé);
-                        psRefund.setLong(3, idCommande);
-                        psRefund.executeUpdate();
-                    }
-                    
-                    // Mettre à jour le solde du client
-                    final String sqlUpdateClient = "UPDATE client SET solde = solde + ? WHERE id_client = ?";
-                    try (PreparedStatement psClientUpdate = cn.prepareStatement(sqlUpdateClient)) {
-                        psClientUpdate.setBigDecimal(1, montantPayé);
-                        psClientUpdate.setLong(2, idClient);
-                        psClientUpdate.executeUpdate();
-                    }
-                    
-                    result = "⏱️ RETARD DÉTECTÉ! Livraison: " + minutesEcoulees + " min (limite: 30 min)\n🎉 Pizzas devenues GRATUITES!\n💰 Remboursement: " + montantPayé + " EUR appliqué";
-                } else {
-                    result = "✅ Livraison rapide! (" + minutesEcoulees + " min) - Commande validée";
-                }
-                
-                // Mettre à jour le statut de la commande à "livree"
-                final String sqlUpdateStatus = "UPDATE commande SET statut = 'livree', date_livraison_reelle = NOW() WHERE id_commande = ?";
-                try (PreparedStatement psStatus = cn.prepareStatement(sqlUpdateStatus)) {
-                    psStatus.setLong(1, idCommande);
-                    psStatus.executeUpdate();
-                }
-                
-                return result;
-            }
-        }
+        throw new SQLException("Utiliser livrerCommande(idCommande, idLivreur) pour valider une livraison.");
     }
 }

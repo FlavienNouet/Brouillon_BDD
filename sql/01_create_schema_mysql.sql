@@ -81,9 +81,10 @@ CREATE TABLE commande (
     id_client BIGINT NOT NULL,
     id_livreur BIGINT NOT NULL,
     date_commande TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    date_prise_en_charge TIMESTAMP NULL DEFAULT NULL,
     date_livraison_prevue TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     date_livraison_reelle TIMESTAMP NULL DEFAULT NULL,
-    statut VARCHAR(20) NOT NULL DEFAULT 'cree' CHECK (statut IN ('cree', 'preparee', 'livree', 'refusee')),
+    statut VARCHAR(20) NOT NULL DEFAULT 'cree' CHECK (statut IN ('cree', 'preparee', 'en_livraison', 'livree', 'refusee')),
     FOREIGN KEY (id_client) REFERENCES client(id_client),
     FOREIGN KEY (id_livreur) REFERENCES livreur(id_livreur)
 );
