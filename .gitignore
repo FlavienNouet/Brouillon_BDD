@@ -1,0 +1,47 @@
+# Maven build
+**/target/
+**/target/*
+
+# Maven tool/vendor (ignore if you don't commit vendor maven)
+tools/
+tools/apache-maven-3.9.9/
+
+# Compiled class files and archives
+*.class
+*.jar
+*.war
+*.ear
+
+# Generated sources / build outputs
+**/generated-sources/
+**/classes/
+
+# IDEs and editors
+.vscode/
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and runtime files
+*.log
+hs_err_pid*
+*.stacktrace
+
+# Local config / secrets
+.env
+*.local
+*.secret
+*.keystore
+
+# Maven temporary files
+pom.xml.tag
+pom.xml.releaseBackup
+dependency-reduced-pom.xml
+release.properties
+buildNumber.properties
