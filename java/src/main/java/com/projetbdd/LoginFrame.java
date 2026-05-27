@@ -4,13 +4,15 @@ import com.formdev.flatlaf.FlatLightLaf;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.geom.RoundRectangle2D;
 
 public class LoginFrame extends JFrame {
     private final UserService userService = new UserService();
-    private final JTextField loginField = new JTextField(20);
-    private final JPasswordField passwordField = new JPasswordField(20);
+    private final ModernTextField loginField = new ModernTextField("Entre ton identifiant");
+    private final ModernPasswordField passwordField = new ModernPasswordField("Entre ton mot de passe");
 
     public LoginFrame() {
         super("RaPizz - Connexion");
@@ -18,9 +20,10 @@ public class LoginFrame extends JFrame {
         applyLookAndFeelDefaults();
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(520, 690);
-        setMinimumSize(new Dimension(480, 640));
+        setSize(600, 750);
+        setMinimumSize(new Dimension(500, 650));
         setLocationRelativeTo(null);
+        setResizable(true);
         setContentPane(createMainContent());
     }
 
@@ -33,8 +36,8 @@ public class LoginFrame extends JFrame {
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
         card.setBackground(Color.WHITE);
         card.setBorder(new EmptyBorder(36, 36, 36, 36));
-        card.setPreferredSize(new Dimension(390, 560));
-        card.setMaximumSize(new Dimension(390, 560));
+        card.setPreferredSize(new Dimension(500, 620));
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
 
         PizzaLogo logo = new PizzaLogo();
         logo.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -67,7 +70,9 @@ public class LoginFrame extends JFrame {
         card.add(loginLabelPanel);
         card.add(Box.createVerticalStrut(8));
 
-        styleTextField(loginField, "Entre ton identifiant");
+        loginField.setAlignmentX(Component.CENTER_ALIGNMENT);
+        loginField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
+        loginField.setPreferredSize(new Dimension(360, 60));
         card.add(loginField);
         card.add(Box.createVerticalStrut(18));
 
@@ -75,7 +80,9 @@ public class LoginFrame extends JFrame {
         card.add(passwordLabelPanel);
         card.add(Box.createVerticalStrut(8));
 
-        stylePasswordField(passwordField, "Entre ton mot de passe");
+        passwordField.setAlignmentX(Component.CENTER_ALIGNMENT);
+        passwordField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
+        passwordField.setPreferredSize(new Dimension(360, 60));
         card.add(passwordField);
         card.add(Box.createVerticalStrut(26));
 
@@ -119,22 +126,6 @@ public class LoginFrame extends JFrame {
         return panel;
     }
 
-    private void styleTextField(JTextField field, String toolTip) {
-        field.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        field.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
-        field.setPreferredSize(new Dimension(300, 44));
-        field.setToolTipText(toolTip);
-        field.setAlignmentX(Component.CENTER_ALIGNMENT);
-    }
-
-    private void stylePasswordField(JPasswordField field, String toolTip) {
-        field.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        field.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
-        field.setPreferredSize(new Dimension(300, 44));
-        field.setToolTipText(toolTip);
-        field.setAlignmentX(Component.CENTER_ALIGNMENT);
-    }
-
     private JButton createPrimaryButton(String text) {
         JButton button = new JButton(text);
         button.setFont(new Font("Segoe UI", Font.BOLD, 14));
@@ -143,7 +134,7 @@ public class LoginFrame extends JFrame {
         button.setBackground(new Color(28, 100, 242));
         button.setForeground(Color.WHITE);
         button.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
-        button.setPreferredSize(new Dimension(300, 44));
+        button.setPreferredSize(new Dimension(330, 44));
         return button;
     }
 
@@ -155,7 +146,7 @@ public class LoginFrame extends JFrame {
         button.setBackground(new Color(240, 242, 245));
         button.setForeground(new Color(33, 37, 41));
         button.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
-        button.setPreferredSize(new Dimension(300, 44));
+        button.setPreferredSize(new Dimension(330, 44));
         return button;
     }
 
@@ -184,6 +175,7 @@ public class LoginFrame extends JFrame {
                     "Erreur de connexion",
                     JOptionPane.ERROR_MESSAGE);
             passwordField.setText("");
+            passwordField.hidePassword();
         }
     }
 
@@ -217,6 +209,7 @@ public class LoginFrame extends JFrame {
                     JOptionPane.INFORMATION_MESSAGE);
             loginField.setText("");
             passwordField.setText("");
+            passwordField.hidePassword();
         } else {
             JOptionPane.showMessageDialog(
                     this,
@@ -232,7 +225,7 @@ public class LoginFrame extends JFrame {
 
             UIManager.put("Button.arc", 18);
             UIManager.put("Component.arc", 18);
-            UIManager.put("TextComponent.arc", 14);
+            UIManager.put("TextComponent.arc", 18);
             UIManager.put("ProgressBar.arc", 18);
 
             UIManager.put("TextField.margin", new Insets(10, 14, 10, 14));
@@ -300,6 +293,225 @@ public class LoginFrame extends JFrame {
             g2.drawArc(x + 12, y + 10, 18, 12, 20, 140);
 
             g2.dispose();
+        }
+    }
+
+    private static class ModernTextField extends JPanel {
+        protected final JTextField field;
+        private final String placeholder;
+        private boolean focused = false;
+
+        public ModernTextField(String placeholder) {
+            this.placeholder = placeholder;
+            this.field = new JTextField();
+
+            setOpaque(false);
+            setLayout(new BorderLayout());
+            setBorder(new EmptyBorder(0, 0, 0, 0));
+
+            field.setOpaque(false);
+            field.setBorder(new EmptyBorder(0, 16, 0, 16));
+            field.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+            field.setForeground(new Color(24, 28, 33));
+            field.setCaretColor(new Color(24, 28, 33));
+
+            field.addFocusListener(new java.awt.event.FocusAdapter() {
+                @Override
+                public void focusGained(java.awt.event.FocusEvent e) {
+                    focused = true;
+                    repaint();
+                }
+
+                @Override
+                public void focusLost(java.awt.event.FocusEvent e) {
+                    focused = false;
+                    repaint();
+                }
+            });
+
+            field.getDocument().addDocumentListener(new DocumentListener() {
+                @Override
+                public void insertUpdate(DocumentEvent e) {
+                    repaint();
+                }
+
+                @Override
+                public void removeUpdate(DocumentEvent e) {
+                    repaint();
+                }
+
+                @Override
+                public void changedUpdate(DocumentEvent e) {
+                    repaint();
+                }
+            });
+
+            add(field, BorderLayout.CENTER);
+        }
+
+        public String getText() {
+            return field.getText();
+        }
+
+        public void setText(String text) {
+            field.setText(text);
+            repaint();
+        }
+
+        @Override
+        public void setMaximumSize(Dimension maximumSize) {
+            super.setMaximumSize(maximumSize);
+        }
+
+        @Override
+        public void setPreferredSize(Dimension preferredSize) {
+            super.setPreferredSize(preferredSize);
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            int w = getWidth();
+            int h = getHeight();
+            int inset = 1;
+
+            g2.setColor(new Color(248, 250, 252));
+            g2.fillRoundRect(inset, inset, w - inset * 2 - 1, h - inset * 2 - 1, 22, 22);
+
+            g2.setColor(focused ? new Color(28, 100, 242) : new Color(220, 224, 230));
+            g2.setStroke(new BasicStroke(focused ? 2f : 1f));
+            g2.drawRoundRect(inset, inset, w - inset * 2 - 1, h - inset * 2 - 1, 22, 22);
+
+            if (field.getText().isEmpty() && !field.hasFocus()) {
+                g2.setColor(new Color(145, 152, 161));
+                g2.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+                FontMetrics fm = g2.getFontMetrics();
+                int textY = (h - fm.getHeight()) / 2 + fm.getAscent();
+                g2.drawString(placeholder, 16, textY);
+            }
+
+            g2.dispose();
+            super.paintComponent(g);
+        }
+    }
+
+    private static class ModernPasswordField extends JPanel {
+        private final JPasswordField field;
+        private final JButton toggleButton;
+        private final String placeholder;
+        private boolean focused = false;
+        private char defaultEchoChar;
+
+        public ModernPasswordField(String placeholder) {
+            this.placeholder = placeholder;
+            this.field = new JPasswordField();
+            this.toggleButton = new JButton("Afficher");
+
+            setOpaque(false);
+            setLayout(new BorderLayout());
+            setBorder(new EmptyBorder(0, 0, 0, 0));
+
+            field.setOpaque(false);
+            field.setBorder(new EmptyBorder(0, 16, 0, 6));
+            field.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+            field.setForeground(new Color(24, 28, 33));
+            field.setCaretColor(new Color(24, 28, 33));
+            defaultEchoChar = field.getEchoChar();
+
+            toggleButton.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            toggleButton.setForeground(new Color(28, 100, 242));
+            toggleButton.setBorderPainted(false);
+            toggleButton.setContentAreaFilled(false);
+            toggleButton.setFocusPainted(false);
+            toggleButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+            toggleButton.setMargin(new Insets(0, 8, 0, 12));
+
+            toggleButton.addActionListener(e -> {
+                if (field.getEchoChar() == (char) 0) {
+                    hidePassword();
+                } else {
+                    field.setEchoChar((char) 0);
+                    toggleButton.setText("Masquer");
+                }
+            });
+
+            field.addFocusListener(new java.awt.event.FocusAdapter() {
+                @Override
+                public void focusGained(java.awt.event.FocusEvent e) {
+                    focused = true;
+                    repaint();
+                }
+
+                @Override
+                public void focusLost(java.awt.event.FocusEvent e) {
+                    focused = false;
+                    repaint();
+                }
+            });
+
+            field.getDocument().addDocumentListener(new DocumentListener() {
+                @Override
+                public void insertUpdate(DocumentEvent e) {
+                    repaint();
+                }
+
+                @Override
+                public void removeUpdate(DocumentEvent e) {
+                    repaint();
+                }
+
+                @Override
+                public void changedUpdate(DocumentEvent e) {
+                    repaint();
+                }
+            });
+
+            add(field, BorderLayout.CENTER);
+            add(toggleButton, BorderLayout.EAST);
+        }
+
+        public char[] getPassword() {
+            return field.getPassword();
+        }
+
+        public void setText(String text) {
+            field.setText(text);
+            repaint();
+        }
+
+        public void hidePassword() {
+            field.setEchoChar(defaultEchoChar);
+            toggleButton.setText("Afficher");
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            int w = getWidth();
+            int h = getHeight();
+            int inset = 1;
+
+            g2.setColor(new Color(248, 250, 252));
+            g2.fillRoundRect(inset, inset, w - inset * 2 - 1, h - inset * 2 - 1, 22, 22);
+
+            g2.setColor(focused ? new Color(28, 100, 242) : new Color(220, 224, 230));
+            g2.setStroke(new BasicStroke(focused ? 2f : 1f));
+            g2.drawRoundRect(inset, inset, w - inset * 2 - 1, h - inset * 2 - 1, 22, 22);
+
+            if (field.getPassword().length == 0 && !field.hasFocus()) {
+                g2.setColor(new Color(145, 152, 161));
+                g2.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+                FontMetrics fm = g2.getFontMetrics();
+                int textY = (h - fm.getHeight()) / 2 + fm.getAscent();
+                g2.drawString(placeholder, 16, textY);
+            }
+
+            g2.dispose();
+            super.paintComponent(g);
         }
     }
 }
