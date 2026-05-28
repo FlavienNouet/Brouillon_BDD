@@ -280,18 +280,20 @@ public class PizzaService {
         return available.get(random.nextInt(available.size()));
     }
 
-    public long passerCommande(long idClient, long idLivreur, String lignesJson, int minutesLivraison) throws SQLException {
-        final String sql = "CALL fn_passer_commande(?, ?, ?, ?, ?)";
+    public long passerCommande(long idClient, long idLivreur, long idPizza, String codeTaille, int quantite, int minutesLivraison) throws SQLException {
+        final String sql = "CALL fn_passer_commande(?, ?, ?, ?, ?, ?, ?)";
         try (Connection cn = Database.getConnection();
              CallableStatement cs = cn.prepareCall(sql)) {
             cs.setLong(1, idClient);
             cs.setLong(2, idLivreur);
-            cs.setString(3, lignesJson);
-            cs.setInt(4, minutesLivraison);
-            cs.registerOutParameter(5, java.sql.Types.BIGINT);
+            cs.setLong(3, idPizza);
+            cs.setString(4, codeTaille);
+            cs.setInt(5, quantite);
+            cs.setInt(6, minutesLivraison);
+            cs.registerOutParameter(7, java.sql.Types.BIGINT);
             cs.execute();
 
-            long idCommande = cs.getLong(5);
+            long idCommande = cs.getLong(7);
             boolean isNull = cs.wasNull();
             if (!isNull && idCommande > 0) {
                 return idCommande;
@@ -552,13 +554,13 @@ public class PizzaService {
 
     public PizzaStats getMostOrderedPizza() throws SQLException {
         final String sql = """
-                SELECT p.id_pizza, p.nom, COUNT(cl.id_ligne) AS nb_commandes
-                FROM pizza p
-                LEFT JOIN commande_ligne cl ON cl.id_pizza = p.id_pizza
-                GROUP BY p.id_pizza, p.nom
-                ORDER BY nb_commandes DESC
-                LIMIT 1
-                """;
+            SELECT p.id_pizza, p.nom, COUNT(com.id_commande) AS nb_commandes
+            FROM pizza p
+            LEFT JOIN commande com ON com.id_pizza = p.id_pizza
+            GROUP BY p.id_pizza, p.nom
+            ORDER BY nb_commandes DESC
+            LIMIT 1
+            """;
         try (Connection cn = Database.getConnection();
              PreparedStatement ps = cn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
@@ -575,13 +577,13 @@ public class PizzaService {
 
     public PizzaStats getLeastOrderedPizza() throws SQLException {
         final String sql = """
-                SELECT p.id_pizza, p.nom, COUNT(cl.id_ligne) AS nb_commandes
-                FROM pizza p
-                LEFT JOIN commande_ligne cl ON cl.id_pizza = p.id_pizza
-                GROUP BY p.id_pizza, p.nom
-                ORDER BY nb_commandes ASC
-                LIMIT 1
-                """;
+            SELECT p.id_pizza, p.nom, COUNT(com.id_commande) AS nb_commandes
+            FROM pizza p
+            LEFT JOIN commande com ON com.id_pizza = p.id_pizza
+            GROUP BY p.id_pizza, p.nom
+            ORDER BY nb_commandes ASC
+            LIMIT 1
+            """;
         try (Connection cn = Database.getConnection();
              PreparedStatement ps = cn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
@@ -598,14 +600,14 @@ public class PizzaService {
 
     public IngredientStat getFavoriteIngredient() throws SQLException {
         final String sql = """
-                SELECT i.id_ingredient, i.nom, COUNT(cl.id_ligne) AS nb_occurrences
-                FROM ingredient i
-                LEFT JOIN pizza_ingredient pi ON pi.id_ingredient = i.id_ingredient
-                LEFT JOIN commande_ligne cl ON cl.id_pizza = pi.id_pizza
-                GROUP BY i.id_ingredient, i.nom
-                ORDER BY nb_occurrences DESC
-                LIMIT 1
-                """;
+            SELECT i.id_ingredient, i.nom, COUNT(com.id_commande) AS nb_occurrences
+            FROM ingredient i
+            LEFT JOIN pizza_ingredient pi ON pi.id_ingredient = i.id_ingredient
+            LEFT JOIN commande com ON com.id_pizza = pi.id_pizza
+            GROUP BY i.id_ingredient, i.nom
+            ORDER BY nb_occurrences DESC
+            LIMIT 1
+            """;
         try (Connection cn = Database.getConnection();
              PreparedStatement ps = cn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
@@ -634,11 +636,10 @@ public class PizzaService {
 
     public FidelityInfo getFidelityInfo(long idClient) throws SQLException {
         final String sql = """
-                SELECT COALESCE(SUM(cl.quantite), 0) AS total
-                FROM commande c
-                JOIN commande_ligne cl ON cl.id_commande = c.id_commande
-                WHERE c.id_client = ?
-                """;
+            SELECT COALESCE(SUM(quantite), 0) AS total
+            FROM commande
+            WHERE id_client = ?
+            """;
         try (Connection cn = Database.getConnection();
              PreparedStatement ps = cn.prepareStatement(sql)) {
             ps.setLong(1, idClient);
@@ -833,22 +834,21 @@ public class PizzaService {
     public List<DeliverySlip> getDeliverySlips(long idLivreur) throws SQLException {
         List<DeliverySlip> slips = new ArrayList<>();
         final String sql = """
-                SELECT c.id_commande, cl.nom AS nomClient, l.nom AS nomLivreur,
-                       COALESCE(v.type_vehicule, 'N/A') AS typeVehicule,
-                       COALESCE(v.immatriculation, 'N/A') AS immatriculation,
-                       DATE_FORMAT(c.date_commande, '%Y-%m-%d %H:%i') AS dateCommande,
-                       DATE_FORMAT(c.date_livraison_prevue, '%Y-%m-%d %H:%i') AS datePreveue,
-                       DATE_FORMAT(c.date_livraison_reelle, '%Y-%m-%d %H:%i') AS dateReelle,
-                       p.nom AS nomPizza, p.prix_base, cld.quantite, cld.est_gratuite,
-                       TIMESTAMPDIFF(MINUTE, c.date_livraison_prevue, c.date_livraison_reelle) AS minutesRetard
-                FROM commande c
-                JOIN client cl ON cl.id_client = c.id_client
-                JOIN livreur l ON l.id_livreur = c.id_livreur
-                LEFT JOIN vehicule v ON v.id_vehicule = l.id_vehicule
-                JOIN commande_ligne cld ON cld.id_commande = c.id_commande
-                JOIN pizza p ON p.id_pizza = cld.id_pizza
-                WHERE c.id_livreur = ?
-                ORDER BY c.date_commande DESC, c.id_commande, cld.id_ligne
+                  SELECT c.id_commande, cl.nom AS nomClient, l.nom AS nomLivreur,
+                      COALESCE(v.type_vehicule, 'N/A') AS typeVehicule,
+                      COALESCE(v.immatriculation, 'N/A') AS immatriculation,
+                      DATE_FORMAT(c.date_commande, '%Y-%m-%d %H:%i') AS dateCommande,
+                      DATE_FORMAT(c.date_livraison_prevue, '%Y-%m-%d %H:%i') AS datePreveue,
+                      DATE_FORMAT(c.date_livraison_reelle, '%Y-%m-%d %H:%i') AS dateReelle,
+                      p.nom AS nomPizza, p.prix_base, c.quantite, c.est_gratuite,
+                      TIMESTAMPDIFF(MINUTE, c.date_livraison_prevue, c.date_livraison_reelle) AS minutesRetard
+                  FROM commande c
+                  JOIN client cl ON cl.id_client = c.id_client
+                  JOIN livreur l ON l.id_livreur = c.id_livreur
+                  LEFT JOIN vehicule v ON v.id_vehicule = l.id_vehicule
+                  JOIN pizza p ON p.id_pizza = c.id_pizza
+                  WHERE c.id_livreur = ?
+                  ORDER BY c.date_commande DESC, c.id_commande
                 """;
         try (Connection cn = Database.getConnection();
              PreparedStatement ps = cn.prepareStatement(sql)) {
@@ -926,34 +926,34 @@ public class PizzaService {
                     String dateCommande = rs.getString("dateCommande");
                     String statut = rs.getString("statut");
                     
-                    // Récupérer les lignes de commande et calculer le montant
+                    // Dans le modèle simplifié, une commande = une ligne
                     List<OrderLineDetail> lignes = new ArrayList<>();
                     BigDecimal montantTotal = BigDecimal.ZERO;
-                    
+
                     final String lignesSql = """
-                            SELECT p.nom, cld.code_taille, cld.quantite, cld.prix_unitaire_base, cld.est_gratuite
-                            FROM commande_ligne cld
-                            JOIN pizza p ON p.id_pizza = cld.id_pizza
-                            WHERE cld.id_commande = ?
+                            SELECT p.nom, c.code_taille, c.quantite, c.prix_unitaire_base, c.est_gratuite
+                            FROM commande c
+                            JOIN pizza p ON p.id_pizza = c.id_pizza
+                            WHERE c.id_commande = ?
                             """;
                     try (PreparedStatement psLignes = cn.prepareStatement(lignesSql)) {
                         psLignes.setLong(1, idCommande);
                         try (ResultSet rsLignes = psLignes.executeQuery()) {
-                            while (rsLignes.next()) {
+                            if (rsLignes.next()) {
                                 String nomPizza = rsLignes.getString("nom");
                                 String taille = rsLignes.getString("code_taille");
                                 long quantite = rsLignes.getLong("quantite");
                                 BigDecimal prixUnitaire = rsLignes.getBigDecimal("prix_unitaire_base");
                                 boolean estGratuite = rsLignes.getBoolean("est_gratuite");
-                                
+
                                 lignes.add(new OrderLineDetail(nomPizza, taille, quantite, prixUnitaire, estGratuite));
-                                if (!estGratuite) {
+                                if (!estGratuite && prixUnitaire != null) {
                                     montantTotal = montantTotal.add(prixUnitaire.multiply(BigDecimal.valueOf(quantite)));
                                 }
                             }
                         }
                     }
-                    
+
                     orders.add(new OrderHistory(idCommande, dateCommande, montantTotal, statut, lignes));
                 }
             }

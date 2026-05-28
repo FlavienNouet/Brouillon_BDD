@@ -33,19 +33,8 @@ BEGIN
     RETURN ROUND(p_prix_base * v_coef * p_quantite, 2);
 END$$
 
-DROP TRIGGER IF EXISTS before_commande_ligne_calc_prix$$
-
-CREATE TRIGGER before_commande_ligne_calc_prix
-BEFORE INSERT ON commande_ligne
-FOR EACH ROW
-BEGIN
-    SET NEW.prix_facture = fn_calc_prix_ligne(
-        NEW.prix_unitaire_base,
-        NEW.code_taille,
-        NEW.quantite,
-        NEW.est_gratuite
-    );
-END$$
+-- Le modèle a été simplifié: une commande = une pizza. Les calculs de prix
+-- sont gérés par les triggers sur la table `commande` (voir 01_create_schema_mysql.sql).
 
 DROP PROCEDURE IF EXISTS fn_recharger_compte$$
 
@@ -93,27 +82,27 @@ MODIFIES SQL DATA
 proc_appliquer: BEGIN
     DECLARE v_id_client BIGINT;
     DECLARE v_total_deja_facture DECIMAL(10,2);
-    
-    SELECT c.id_client, COALESCE(SUM(cl.prix_facture), 0)
+
+    SELECT id_client, COALESCE(prix_facture,0)
     INTO v_id_client, v_total_deja_facture
-    FROM commande c
-    JOIN commande_ligne cl ON cl.id_commande = c.id_commande
-    WHERE c.id_commande = p_id_commande
-    GROUP BY c.id_client;
-    
-    IF v_total_deja_facture <= 0 THEN
+    FROM commande
+    WHERE id_commande = p_id_commande
+    LIMIT 1;
+
+    IF v_total_deja_facture IS NULL OR v_total_deja_facture <= 0 THEN
         LEAVE proc_appliquer;
     END IF;
-    
-    UPDATE commande_ligne
-    SET est_gratuite = TRUE
+
+    UPDATE commande
+    SET est_gratuite = TRUE,
+        prix_facture = 0
     WHERE id_commande = p_id_commande
     AND est_gratuite = FALSE;
-    
+
     UPDATE client
     SET solde = solde + v_total_deja_facture
     WHERE id_client = v_id_client;
-    
+
     INSERT INTO compte_transaction(id_client, type_transaction, montant, commentaire)
     VALUES (v_id_client, 'remboursement_retard', v_total_deja_facture, 'Livraison > 30 min, commande gratuite');
 END$$
@@ -121,43 +110,20 @@ END$$
 DROP TRIGGER IF EXISTS after_commande_retard_gratuite$$
 
 CREATE TRIGGER after_commande_retard_gratuite
-AFTER UPDATE ON commande
-FOR EACH ROW
-BEGIN
-    DECLARE v_minutes_retard INT;
-    
-    IF NEW.date_livraison_reelle IS NOT NULL THEN
-        SET v_minutes_retard = TIMESTAMPDIFF(MINUTE, NEW.date_commande, NEW.date_livraison_reelle);
-        
-        IF v_minutes_retard > 30 THEN
-            CALL fn_appliquer_gratuite_retard(NEW.id_commande);
-        END IF;
-    END IF;
-END$$
-
 DROP PROCEDURE IF EXISTS fn_passer_commande$$
 
 CREATE PROCEDURE fn_passer_commande(
     IN p_id_client BIGINT,
     IN p_id_livreur BIGINT,
-    IN p_lignes_json JSON,
+    IN p_id_pizza BIGINT,
+    IN p_code_taille VARCHAR(20),
+    IN p_quantite INT,
     IN p_minutes_livraison INT,
     OUT p_id_commande BIGINT
 )
 MODIFIES SQL DATA
 BEGIN
-    DECLARE v_solde DECIMAL(10,2);
-    DECLARE v_total DECIMAL(10,2) DEFAULT 0;
-    DECLARE v_prix_base DECIMAL(10,2);
-    DECLARE v_id_pizza BIGINT;
-    DECLARE v_taille VARCHAR(20);
-    DECLARE v_qte INT;
-    DECLARE v_nb_pizzas_historique INT;
-    DECLARE v_compteur INT;
-    DECLARE v_est_gratuite BOOLEAN;
-    DECLARE v_cout_ligne DECIMAL(10,2);
-    DECLARE i INT DEFAULT 0;
-    DECLARE v_array_length INT;
+    DECLARE v_statut VARCHAR(20);
     DECLARE msg VARCHAR(255);
     DECLARE EXIT HANDLER FOR SQLEXCEPTION
     BEGIN
@@ -165,94 +131,33 @@ BEGIN
         SET p_id_commande = NULL;
         RESIGNAL;
     END;
-    
+
     START TRANSACTION;
-    
-    SELECT solde INTO v_solde
-    FROM client
-    WHERE id_client = p_id_client
-    FOR UPDATE;
-    
-    IF v_solde IS NULL THEN
-        SET msg = CONCAT('Client introuvable: ', p_id_client);
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = msg;
+
+    IF p_quantite IS NULL OR p_quantite < 1 THEN
+        SET p_quantite = 1;
     END IF;
-    
-    SET v_array_length = JSON_LENGTH(p_lignes_json);
-    
-    IF v_array_length = 0 THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'La commande doit contenir au moins une pizza';
-    END IF;
-    
-    INSERT INTO commande(id_client, id_livreur, date_livraison_prevue, statut)
-    VALUES (p_id_client, p_id_livreur, DATE_ADD(NOW(), INTERVAL 30 MINUTE), 'preparee');
-    
+
+    INSERT INTO commande(id_client, id_livreur, date_livraison_prevue, statut, id_pizza, code_taille, quantite)
+    VALUES (p_id_client, p_id_livreur, DATE_ADD(NOW(), INTERVAL p_minutes_livraison MINUTE), 'cree', p_id_pizza, p_code_taille, p_quantite);
+
     SET p_id_commande = LAST_INSERT_ID();
-    
-    SELECT COALESCE(SUM(cl.quantite), 0)
-    INTO v_nb_pizzas_historique
-    FROM commande c
-    JOIN commande_ligne cl ON cl.id_commande = c.id_commande
-    WHERE c.id_client = p_id_client
-    AND c.id_commande <> p_id_commande;
-    
-    SET v_compteur = v_nb_pizzas_historique;
-    
-    WHILE i < v_array_length DO
-        SET v_id_pizza = JSON_UNQUOTE(JSON_EXTRACT(p_lignes_json, CONCAT('$[', i, '].pizza_id')));
-        SET v_taille = JSON_UNQUOTE(JSON_EXTRACT(p_lignes_json, CONCAT('$[', i, '].taille')));
-        SET v_qte = JSON_UNQUOTE(JSON_EXTRACT(p_lignes_json, CONCAT('$[', i, '].quantite')));
-        
-        SELECT prix_base INTO v_prix_base
-        FROM pizza
-        WHERE id_pizza = v_id_pizza;
-        
-        IF v_prix_base IS NULL THEN
-            SET msg = CONCAT('Pizza introuvable: ', v_id_pizza);
-            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = msg;
-        END IF;
-        
-        IF v_qte <= 0 THEN
-            SET msg = CONCAT('Quantite invalide pour pizza ', v_id_pizza);
-            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = msg;
-        END IF;
-        
-        BLOCK_LOOP: BEGIN
-            DECLARE j INT DEFAULT 1;
-            WHILE j <= v_qte DO
-                SET v_compteur = v_compteur + 1;
-                SET v_est_gratuite = (MOD(v_compteur, 10) = 0);
 
-                SET v_cout_ligne = fn_calc_prix_ligne(v_prix_base, v_taille, 1, v_est_gratuite);
-                SET v_total = v_total + v_cout_ligne;
-
-                INSERT INTO commande_ligne(
-                    id_commande, id_pizza, code_taille, quantite,
-                    prix_unitaire_base, est_gratuite
-                ) VALUES (
-                    p_id_commande, v_id_pizza, v_taille, 1,
-                    v_prix_base, v_est_gratuite
-                );
-
-                SET j = j + 1;
-            END WHILE;
-        END BLOCK_LOOP;
-        
-        SET i = i + 1;
-    END WHILE;
-    
-    IF v_total > v_solde THEN
-        INSERT INTO refus_commande(id_client, montant_requis, solde_disponible, motif)
-        VALUES (p_id_client, v_total, v_solde, 'Solde insuffisant');
-        
-        DELETE FROM commande WHERE id_commande = p_id_commande;
-        
-        SET p_id_commande = NULL;
+    -- Après triggers, vérifier si la commande a été refusée (solde insuffisant)
+    SELECT statut INTO v_statut FROM commande WHERE id_commande = p_id_commande FOR UPDATE;
+    IF v_statut = 'refusee' THEN
+        -- La transaction de refus a déjà été enregistrée par les triggers
         ROLLBACK;
-    ELSE
-        UPDATE client
-        SET solde = solde - v_total
+        SET p_id_commande = NULL;
+        LEAVE BEGIN;
+    END IF;
+
+    UPDATE commande
+    SET statut = 'preparee'
+    WHERE id_commande = p_id_commande;
+
+    COMMIT;
+END$$
         WHERE id_client = p_id_client;
         
         INSERT INTO compte_transaction(id_client, type_transaction, montant, commentaire)

@@ -1218,9 +1218,13 @@ public class MainFrame extends JFrame {
             // Sélectionner un livreur aléatoire qui n'est pas en livraison
             PizzaService.LivreurOption livreur = service.selectRandomLivreur();
             int minutes = Integer.parseInt(minutesLivraisonField.getText().trim());
-            String json = buildOrderJson();
+            // Modèle simplifié : on prend la première ligne du panier (1 pizza = 1 commande)
+            CartLine first = cartModel.get(0);
+            long idPizza = first.pizza.id;
+            String codeTaille = first.taille.code;
+            int quantite = first.quantite;
 
-            long idCommande = service.passerCommande(session.getIdClient(), livreur.id, json, minutes);
+            long idCommande = service.passerCommande(session.getIdClient(), livreur.id, idPizza, codeTaille, quantite, minutes);
             showOutput("Commande creee: " + idCommande + " | Livreur assigné: " + livreur.nom + " (" + livreur.typeVehicule + ")");
             clearCart();
             refreshFidelityLabel();
@@ -2018,11 +2022,15 @@ public class MainFrame extends JFrame {
             long idClient = client.id;
             long idLivreur = livreur.id;
             int minutes = Integer.parseInt(minutesLivraisonField.getText().trim());
-            String json = buildOrderJson();
+            // Modèle simplifié : on prend la première ligne du panier (1 pizza = 1 commande)
+            CartLine first = cartModel.get(0);
+            long idPizza = first.pizza.id;
+            String codeTaille = first.taille.code;
+            int quantite = first.quantite;
 
-            long idCommande = service.passerCommande(idClient, idLivreur, json, minutes);
-            showOutput("Commande creee: " + idCommande + " | Client: " + client.nom + " | Livreur: " + livreur.nom
-                    + " | Vehicule: " + livreur.typeVehicule + " | JSON: " + json);
+            long idCommande = service.passerCommande(idClient, idLivreur, idPizza, codeTaille, quantite, minutes);
+                showOutput("Commande creee: " + idCommande + " | Client: " + client.nom + " | Livreur: " + livreur.nom
+                    + " | Vehicule: " + livreur.typeVehicule + " | Pizza: " + first.pizza.nom + " (" + codeTaille + ") x" + quantite);
             clearCart();
             refreshData();
             JOptionPane.showMessageDialog(this, "Commande creee: " + idCommande);

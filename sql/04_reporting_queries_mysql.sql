@@ -11,8 +11,8 @@ GROUP BY c.id_client, c.nom, c.solde
 ORDER BY c.id_client;
 
 -- 2) Chiffre d'affaires (hors pizzas gratuites)
-SELECT ROUND(COALESCE(SUM(cl.prix_facture), 0), 2) AS chiffre_affaires
-FROM commande_ligne cl;
+SELECT ROUND(COALESCE(SUM(c.prix_facture), 0), 2) AS chiffre_affaires
+FROM commande c;
 
 -- 3) Refus de commande pour manque d'argent
 SELECT rc.*, c.nom
@@ -21,10 +21,9 @@ JOIN client c ON c.id_client = rc.id_client
 ORDER BY rc.date_refus DESC;
 
 -- 4) Meilleur client (depense totale)
-SELECT c.id_client, c.nom, ROUND(SUM(cl.prix_facture), 2) AS depense_totale
+SELECT c.id_client, c.nom, ROUND(SUM(co.prix_facture), 2) AS depense_totale
 FROM client c
 JOIN commande co ON co.id_client = c.id_client
-JOIN commande_ligne cl ON cl.id_commande = co.id_commande
 GROUP BY c.id_client, c.nom
 ORDER BY depense_totale DESC
 LIMIT 1;
@@ -42,24 +41,24 @@ ORDER BY retard_moyen_minutes DESC
 LIMIT 1;
 
 -- 6) Pizza la plus et la moins demandee
-SELECT p.nom, COUNT(*) AS nb_lignes
-FROM commande_ligne cl
-JOIN pizza p ON p.id_pizza = cl.id_pizza
+SELECT p.nom, COUNT(*) AS nb_commandes
+FROM commande co
+JOIN pizza p ON p.id_pizza = co.id_pizza
 GROUP BY p.nom
-ORDER BY nb_lignes DESC
+ORDER BY nb_commandes DESC
 LIMIT 1;
 
-SELECT p.nom, COUNT(*) AS nb_lignes
-FROM commande_ligne cl
-JOIN pizza p ON p.id_pizza = cl.id_pizza
+SELECT p.nom, COUNT(*) AS nb_commandes
+FROM commande co
+JOIN pizza p ON p.id_pizza = co.id_pizza
 GROUP BY p.nom
-ORDER BY nb_lignes ASC
+ORDER BY nb_commandes ASC
 LIMIT 1;
 
 -- 7) Ingredient favori (apparition dans pizzas vendues)
 SELECT i.nom, COUNT(*) AS occurrences
-FROM commande_ligne cl
-JOIN pizza_ingredient pi ON pi.id_pizza = cl.id_pizza
+FROM commande co
+JOIN pizza_ingredient pi ON pi.id_pizza = co.id_pizza
 JOIN ingredient i ON i.id_ingredient = pi.id_ingredient
 GROUP BY i.nom
 ORDER BY occurrences DESC
