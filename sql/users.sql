@@ -1,9 +1,15 @@
--- Initialisation des utilisateurs de test pour MySQL
--- Prerequis:
--- 1. Executer sql/01_create_schema_mysql.sql
--- 2. Executer sql/02_business_logic_mysql.sql
--- 3. Executer sql/03_seed_data_mysql.sql
--- 4. Verifier que client #1 et livreur #1 existent
+CREATE TABLE IF NOT EXISTS utilisateur (
+	id_utilisateur BIGINT AUTO_INCREMENT PRIMARY KEY,
+	login VARCHAR(50) NOT NULL UNIQUE,
+	password_hash VARCHAR(255) NOT NULL,
+	role VARCHAR(20) NOT NULL,
+	id_client BIGINT NULL,
+	id_livreur BIGINT NULL,
+	actif BOOLEAN NOT NULL DEFAULT TRUE,
+	date_creation TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	FOREIGN KEY (id_client) REFERENCES client(id_client) ON DELETE SET NULL,
+	FOREIGN KEY (id_livreur) REFERENCES livreur(id_livreur) ON DELETE SET NULL
+);
 
 INSERT INTO utilisateur (login, password_hash, role, actif)
 VALUES ('admin', '$2a$10$yl2tI5ss3DpDVTeCnaUMZ.Xgwyd/EMwrl2n3lKUXPVuiI2BMLlrBy', 'ADMIN', TRUE);

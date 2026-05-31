@@ -1,5 +1,3 @@
--- Jeu de donnees et boucles de generation
-
 INSERT INTO taille(code_taille, coefficient_prix) VALUES
 ('naine', 0.6667),
 ('humaine', 1.0000),
@@ -44,9 +42,6 @@ INSERT INTO livreur(nom, id_vehicule) VALUES
 ('Ryu', 4)
 ON DUPLICATE KEY UPDATE id_vehicule = VALUES(id_vehicule);
 
--- Looping de creation de clients
-
--- Looping de creation de clients (MySQL compatible)
 DELIMITER $$
 DROP PROCEDURE IF EXISTS seed_clients$$
 CREATE PROCEDURE seed_clients()
@@ -71,6 +66,5 @@ DELIMITER ;
 
 CALL seed_clients();
 DROP PROCEDURE IF EXISTS seed_clients;
--- Quelques recharges
 CALL fn_recharger_compte(1, 30);
 CALL fn_recharger_compte(2, 20);

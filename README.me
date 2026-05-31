@@ -51,11 +51,11 @@ Exemple:
 
 Puis executer les scripts dans cet ordre:
 
-1. sql/01_create_schema.sql
-2. sql/02_business_logic.sql
-3. sql/03_seed_data.sql
-4. sql/04_reporting_queries.sql (pour les analyses)
-5. sql/05_init_users_mysql.sql (comptes de test)
+1. sql/schema.sql
+2. sql/logic.sql
+3. sql/seeds.sql
+4. sql/reports.sql (pour les analyses)
+5. sql/users.sql (comptes de test)
 
 ## 2) Regles metier implementees
 
@@ -100,7 +100,7 @@ Comptes de test prets a l emploi:
 - **client1** / **client123**
 - **livreur1** / **livreur123**
 
-Ces comptes sont disponibles apres insertion du script [sql/05_init_users_mysql.sql](sql/05_init_users_mysql.sql).
+Ces comptes sont disponibles apres insertion du script [sql/users.sql](sql/users.sql).
 Ils sont aussi crees automatiquement au premier lancement de l application si la table utilisateur est absente ou vide.
 Pour plus de details, voir [AUTHENTICATION.md](AUTHENTICATION.md).
 

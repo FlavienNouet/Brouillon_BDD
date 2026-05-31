@@ -1,6 +1,3 @@
--- MySQL 8.0+
--- Fonctions, triggers et procedures metier
-
 DELIMITER $$
 
 DROP FUNCTION IF EXISTS fn_calc_prix_ligne$$
@@ -16,25 +13,22 @@ READS SQL DATA
 BEGIN
     DECLARE v_coef DECIMAL(10,4);
     DECLARE msg VARCHAR(255);
-    
+
     IF p_est_gratuite THEN
         RETURN 0;
     END IF;
-    
+
     SELECT coefficient_prix INTO v_coef
     FROM taille
     WHERE code_taille = p_code_taille;
-    
+
     IF v_coef IS NULL THEN
         SET msg = CONCAT('Taille inconnue: ', p_code_taille);
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = msg;
     END IF;
-    
+
     RETURN ROUND(p_prix_base * v_coef * p_quantite, 2);
 END$$
-
--- Le modèle a été simplifié: une commande = une pizza. Les calculs de prix
--- sont gérés par les triggers sur la table `commande` (voir 01_create_schema_mysql.sql).
 
 DROP PROCEDURE IF EXISTS fn_recharger_compte$$
 
@@ -50,26 +44,26 @@ BEGIN
         ROLLBACK;
         RESIGNAL;
     END;
-    
+
     START TRANSACTION;
-    
+
     IF p_montant <= 0 THEN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'Le montant de recharge doit etre > 0';
     END IF;
-    
+
     UPDATE client
     SET solde = solde + p_montant
     WHERE id_client = p_id_client;
-    
+
     IF ROW_COUNT() = 0 THEN
         SET msg = CONCAT('Client introuvable: ', p_id_client);
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = msg;
     END IF;
-    
+
     INSERT INTO compte_transaction(id_client, type_transaction, montant, commentaire)
     VALUES (p_id_client, 'recharge', p_montant, 'Recharge compte prepaye');
-    
+
     COMMIT;
 END$$
 
@@ -108,8 +102,6 @@ proc_appliquer: BEGIN
 END$$
 
 DROP TRIGGER IF EXISTS after_commande_retard_gratuite$$
-
-CREATE TRIGGER after_commande_retard_gratuite
 DROP PROCEDURE IF EXISTS fn_passer_commande$$
 
 CREATE PROCEDURE fn_passer_commande(
@@ -122,7 +114,7 @@ CREATE PROCEDURE fn_passer_commande(
     OUT p_id_commande BIGINT
 )
 MODIFIES SQL DATA
-BEGIN
+proc_passer: BEGIN
     DECLARE v_statut VARCHAR(20);
     DECLARE msg VARCHAR(255);
     DECLARE EXIT HANDLER FOR SQLEXCEPTION
@@ -143,13 +135,11 @@ BEGIN
 
     SET p_id_commande = LAST_INSERT_ID();
 
-    -- Après triggers, vérifier si la commande a été refusée (solde insuffisant)
     SELECT statut INTO v_statut FROM commande WHERE id_commande = p_id_commande FOR UPDATE;
     IF v_statut = 'refusee' THEN
-        -- La transaction de refus a déjà été enregistrée par les triggers
         ROLLBACK;
         SET p_id_commande = NULL;
-        LEAVE BEGIN;
+        LEAVE proc_passer;
     END IF;
 
     UPDATE commande
@@ -157,19 +147,6 @@ BEGIN
     WHERE id_commande = p_id_commande;
 
     COMMIT;
-END$$
-        WHERE id_client = p_id_client;
-        
-        INSERT INTO compte_transaction(id_client, type_transaction, montant, commentaire)
-        VALUES (p_id_client, 'debit_commande', v_total, CONCAT('Debitage commande ', p_id_commande));
-        
-        UPDATE commande
-        SET date_livraison_prevue = DATE_ADD(date_commande, INTERVAL p_minutes_livraison MINUTE),
-            statut = 'preparee'
-        WHERE id_commande = p_id_commande;
-        
-        COMMIT;
-    END IF;
 END$$
 
 DROP PROCEDURE IF EXISTS fn_prendre_en_charge_commande$$
