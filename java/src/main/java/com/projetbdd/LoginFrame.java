@@ -83,17 +83,6 @@ public class LoginFrame extends JFrame {
         loginButton.addActionListener(e -> handleLogin());
         buttonPanel.add(loginButton);
 
-        buttonPanel.add(Box.createHorizontalStrut(12));
-
-        JButton registerButton = new JButton("S'inscrire");
-        registerButton.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        registerButton.setFocusPainted(false);
-        registerButton.setBackground(new Color(76, 175, 80));
-        registerButton.setForeground(Color.WHITE);
-        registerButton.setPreferredSize(new Dimension(120, 36));
-        registerButton.addActionListener(e -> handleRegister());
-        buttonPanel.add(registerButton);
-
         formPanel.add(buttonPanel);
         add(formPanel, BorderLayout.CENTER);
     }
@@ -115,29 +104,6 @@ public class LoginFrame extends JFrame {
         } else {
             JOptionPane.showMessageDialog(this, "Identifiant ou mot de passe incorrect.", "Erreur de connexion", JOptionPane.ERROR_MESSAGE);
             passwordField.setText("");
-        }
-    }
-
-    private void handleRegister() {
-        String login = loginField.getText().trim();
-        String password = new String(passwordField.getPassword());
-
-        if (login.isEmpty() || password.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Veuillez remplir tous les champs.", "Erreur", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
-        if (userService.userExists(login)) {
-            JOptionPane.showMessageDialog(this, "Cet identifiant existe déjà.", "Erreur", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
-        if (userService.createUser(login, password, "CLIENT", null, null)) {
-            JOptionPane.showMessageDialog(this, "Inscription réussie ! Vous pouvez maintenant vous connecter.", "Succès", JOptionPane.INFORMATION_MESSAGE);
-            loginField.setText("");
-            passwordField.setText("");
-        } else {
-            JOptionPane.showMessageDialog(this, "Erreur lors de l'inscription.", "Erreur", JOptionPane.ERROR_MESSAGE);
         }
     }
 
