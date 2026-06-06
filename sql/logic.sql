@@ -142,10 +142,6 @@ proc_passer: BEGIN
         LEAVE proc_passer;
     END IF;
 
-    UPDATE commande
-    SET statut = 'preparee'
-    WHERE id_commande = p_id_commande;
-
     COMMIT;
 END$$
 
@@ -174,8 +170,8 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Livreur non assigne a cette commande';
     END IF;
 
-    IF v_current_status <> 'preparee' THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'La commande doit etre en etat preparee';
+    IF v_current_status NOT IN ('cree', 'preparee') THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'La commande doit etre en etat cree ou preparee';
     END IF;
 
     UPDATE commande

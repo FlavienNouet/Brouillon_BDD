@@ -743,8 +743,8 @@ public class MainFrame extends JFrame {
             long idCommande = ((Number) deliveryModel.getValueAt(modelRow, 0)).longValue();
             String statut = String.valueOf(deliveryModel.getValueAt(modelRow, 2));
 
-            if (!"preparee".equals(statut)) {
-                JOptionPane.showMessageDialog(this, "La commande doit etre en etat preparee.", "Info", JOptionPane.INFORMATION_MESSAGE);
+            if (!"cree".equals(statut) && !"preparee".equals(statut)) {
+                JOptionPane.showMessageDialog(this, "La commande doit etre en etat cree ou preparee.", "Info", JOptionPane.INFORMATION_MESSAGE);
                 return;
             }
 
@@ -1291,22 +1291,26 @@ public class MainFrame extends JFrame {
         trackingStateLabel.setText("Etat: " + toReadableStatus(tracking.statut));
 
         int progress;
-        switch (tracking.statut) {
-            case "cree":
-                progress = 15;
-                break;
-            case "preparee":
-                progress = 40;
-                break;
-            case "en_livraison":
-                progress = 75;
-                break;
-            case "livree":
-                progress = 100;
-                break;
-            default:
-                progress = 0;
-                break;
+        if ("livree".equals(tracking.statut)) {
+            progress = 100;
+        } else if (tracking.dureePrevueSecondes > 0) {
+            long elapsedSeconds = Math.max(tracking.dureePrevueSecondes - tracking.etaSecondes, 0L);
+            progress = (int) Math.max(0L, Math.min(99L, (elapsedSeconds * 100L) / tracking.dureePrevueSecondes));
+        } else {
+            switch (tracking.statut) {
+                case "cree":
+                    progress = 15;
+                    break;
+                case "preparee":
+                    progress = 40;
+                    break;
+                case "en_livraison":
+                    progress = 75;
+                    break;
+                default:
+                    progress = 0;
+                    break;
+            }
         }
 
         trackingProgressBar.setValue(progress);

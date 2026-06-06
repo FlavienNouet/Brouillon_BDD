@@ -723,6 +723,9 @@ public class PizzaService {
         public final String datePriseEnCharge;
         public final String dateLivree;
         public final long etaMinutes;
+        public final long dureePrevueMinutes;
+        public final long etaSecondes;
+        public final long dureePrevueSecondes;
 
         public ClientOrderTracking(Long idCommande,
                                    String statut,
@@ -730,7 +733,10 @@ public class PizzaService {
                                    String datePrevue,
                                    String datePriseEnCharge,
                                    String dateLivree,
-                                   long etaMinutes) {
+                                   long etaMinutes,
+                                   long dureePrevueMinutes,
+                                   long etaSecondes,
+                                   long dureePrevueSecondes) {
             this.idCommande = idCommande;
             this.statut = statut;
             this.dateCommande = dateCommande;
@@ -738,6 +744,9 @@ public class PizzaService {
             this.datePriseEnCharge = datePriseEnCharge;
             this.dateLivree = dateLivree;
             this.etaMinutes = etaMinutes;
+            this.dureePrevueMinutes = dureePrevueMinutes;
+            this.etaSecondes = etaSecondes;
+            this.dureePrevueSecondes = dureePrevueSecondes;
         }
     }
 
@@ -754,7 +763,7 @@ public class PizzaService {
                 FROM commande c
                 JOIN client cl ON cl.id_client = c.id_client
                 WHERE c.id_livreur = ?
-                  AND c.statut IN ('preparee', 'en_livraison')
+                  AND c.statut IN ('cree', 'preparee', 'en_livraison')
                 ORDER BY c.date_commande ASC
                 """;
         try (Connection cn = Database.getConnection();
@@ -798,14 +807,19 @@ public class PizzaService {
     }
 
     public ClientOrderTracking getClientLatestOrderTracking(long idClient) throws SQLException {
+        autoCloseDueClientOrder(idClient);
+
         final String sql = """
                 SELECT c.id_commande,
                        c.statut,
                        DATE_FORMAT(c.date_commande, '%Y-%m-%d %H:%i') AS date_commande,
                        DATE_FORMAT(c.date_livraison_prevue, '%Y-%m-%d %H:%i') AS date_prevue,
                        DATE_FORMAT(c.date_prise_en_charge, '%Y-%m-%d %H:%i') AS date_prise_en_charge,
-                       DATE_FORMAT(c.date_livraison_reelle, '%Y-%m-%d %H:%i') AS date_livree,
-                       GREATEST(TIMESTAMPDIFF(MINUTE, NOW(), c.date_livraison_prevue), 0) AS eta_minutes
+                      DATE_FORMAT(c.date_livraison_reelle, '%Y-%m-%d %H:%i') AS date_livree,
+                      GREATEST(TIMESTAMPDIFF(MINUTE, NOW(), c.date_livraison_prevue), 0) AS eta_minutes,
+                        GREATEST(TIMESTAMPDIFF(MINUTE, c.date_commande, c.date_livraison_prevue), 1) AS duree_prevue_minutes,
+                        GREATEST(TIMESTAMPDIFF(SECOND, NOW(), c.date_livraison_prevue), 0) AS eta_secondes,
+                        GREATEST(TIMESTAMPDIFF(SECOND, c.date_commande, c.date_livraison_prevue), 1) AS duree_prevue_secondes
                 FROM commande c
                 WHERE c.id_client = ?
                 ORDER BY c.date_commande DESC
@@ -823,12 +837,33 @@ public class PizzaService {
                             rs.getString("date_prevue"),
                             rs.getString("date_prise_en_charge"),
                             rs.getString("date_livree"),
-                            rs.getLong("eta_minutes")
+                            rs.getLong("eta_minutes"),
+                            rs.getLong("duree_prevue_minutes"),
+                            rs.getLong("eta_secondes"),
+                            rs.getLong("duree_prevue_secondes")
                     );
                 }
             }
         }
-        return new ClientOrderTracking(null, null, null, null, null, null, 0);
+        return new ClientOrderTracking(null, null, null, null, null, null, 0, 0, 0, 0);
+    }
+
+    private void autoCloseDueClientOrder(long idClient) throws SQLException {
+        final String sql = """
+                UPDATE commande
+                SET statut = 'livree',
+                    date_livraison_reelle = COALESCE(date_livraison_reelle, NOW())
+                WHERE id_client = ?
+                  AND statut <> 'livree'
+                  AND NOW() >= date_livraison_prevue
+                ORDER BY date_commande DESC
+                LIMIT 1
+                """;
+        try (Connection cn = Database.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sql)) {
+            ps.setLong(1, idClient);
+            ps.executeUpdate();
+        }
     }
 
     public List<DeliverySlip> getDeliverySlips(long idLivreur) throws SQLException {

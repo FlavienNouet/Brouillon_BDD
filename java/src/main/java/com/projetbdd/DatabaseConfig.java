@@ -10,5 +10,5 @@ public final class DatabaseConfig {
     );
 
     public static final String USER = System.getenv().getOrDefault("DB_USER", "root");
-    public static final String PASSWORD = System.getenv().getOrDefault("DB_PASSWORD", "");
+    public static final String PASSWORD = System.getenv().getOrDefault("DB_PASSWORD", "root");
 }
