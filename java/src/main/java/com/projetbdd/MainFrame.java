@@ -247,7 +247,7 @@ public class MainFrame extends JFrame {
     }
 
     private Color getBackgroundColor() {
-        return isDarkTheme ? new Color(30, 30, 35) : new Color(243, 246, 251);
+        return isDarkTheme ? new Color(30, 30, 35) : getTabBackgroundColor();
     }
 
     private Color getCardColor() {
@@ -255,7 +255,7 @@ public class MainFrame extends JFrame {
     }
 
     private Color getForegroundColor() {
-        return isDarkTheme ? Color.WHITE : new Color(49, 66, 100);
+        return isDarkTheme ? Color.WHITE : new Color(24, 28, 33);
     }
 
     private Color getSubtitleColor() {
@@ -264,6 +264,14 @@ public class MainFrame extends JFrame {
 
     private Color getBorderColor() {
         return isDarkTheme ? new Color(70, 70, 75) : new Color(208, 216, 229);
+    }
+
+    private Color getTabBackgroundColor() {
+        return isDarkTheme ? new Color(30, 30, 35) : new Color(243, 246, 251);
+    }
+
+    private Color getAreaBackgroundColor() {
+        return isDarkTheme ? new Color(50, 50, 55) : new Color(249, 251, 254);
     }
 
     private void toggleTheme() {
@@ -300,7 +308,7 @@ public class MainFrame extends JFrame {
     private JPanel buildClientOrderTab() {
         JPanel tab = new JPanel(new BorderLayout(12, 12));
         tab.setBorder(new EmptyBorder(14, 14, 14, 14));
-        tab.setBackground(new Color(243, 246, 251));
+        tab.setBackground(getTabBackgroundColor());
 
         JPanel pizzaCard = buildCard("Choix pizza");
         JPanel pizzaGrid = new JPanel(new GridLayout(3, 2, 10, 10));
@@ -318,7 +326,7 @@ public class MainFrame extends JFrame {
         pizzaGrid.add(quantiteSpinner);
 
         pizzaDetailsLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        pizzaDetailsLabel.setForeground(new Color(49, 66, 100));
+        pizzaDetailsLabel.setForeground(getForegroundColor());
         pizzaDetailsLabel.setBorder(new EmptyBorder(8, 0, 8, 0));
 
         JButton addLineBtn = new JButton("Ajouter au panier");
@@ -337,7 +345,7 @@ public class MainFrame extends JFrame {
         cartList.setFont(new Font("Consolas", Font.PLAIN, 12));
         cartList.setVisibleRowCount(6);
         JScrollPane cartScroll = new JScrollPane(cartList);
-        cartScroll.setBorder(BorderFactory.createLineBorder(new Color(208, 216, 229)));
+        cartScroll.setBorder(BorderFactory.createLineBorder(getBorderColor()));
 
         JButton removeBtn = new JButton("Retirer");
         JButton clearBtn = new JButton("Vider");
@@ -391,7 +399,7 @@ public class MainFrame extends JFrame {
 
         JPanel trackingCard = buildCard("Suivi commande");
         trackingStateLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        trackingStateLabel.setForeground(new Color(29, 44, 78));
+        trackingStateLabel.setForeground(getForegroundColor());
         trackingEtaLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         trackingOrderLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         trackingProgressBar.setStringPainted(true);
@@ -427,10 +435,10 @@ public class MainFrame extends JFrame {
         outputArea.setLineWrap(true);
         outputArea.setWrapStyleWord(true);
         outputArea.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        outputArea.setBackground(new Color(249, 251, 254));
+        outputArea.setBackground(getAreaBackgroundColor());
         outputArea.setText("Pret. Selectionne des pizzas pour creer une commande.");
         JScrollPane outputScroll = new JScrollPane(outputArea);
-        outputScroll.setBorder(BorderFactory.createLineBorder(new Color(208, 216, 229)));
+        outputScroll.setBorder(BorderFactory.createLineBorder(getBorderColor()));
         output.add(outputScroll, BorderLayout.CENTER);
         right.add(output);
 
@@ -452,7 +460,7 @@ public class MainFrame extends JFrame {
     private JPanel buildClientAccountTab() {
         JPanel tab = new JPanel(new BorderLayout(12, 12));
         tab.setBorder(new EmptyBorder(14, 14, 14, 14));
-        tab.setBackground(new Color(243, 246, 251));
+        tab.setBackground(getTabBackgroundColor());
 
         JPanel balanceCard = buildCard("Consultation solde");
         JLabel balanceValueLabel = new JLabel("Chargement...");
@@ -533,7 +541,7 @@ public class MainFrame extends JFrame {
     private JPanel buildOrderHistoryTab() {
         JPanel tab = new JPanel(new BorderLayout(12, 12));
         tab.setBorder(new EmptyBorder(14, 14, 14, 14));
-        tab.setBackground(new Color(243, 246, 251));
+        tab.setBackground(getTabBackgroundColor());
 
         JButton refreshBtn = new JButton("Rafraichir");
         stylePrimaryButton(refreshBtn, new Color(98, 84, 177));
@@ -542,7 +550,7 @@ public class MainFrame extends JFrame {
         header.setOpaque(false);
         JLabel titleLabel = new JLabel("Historique des commandes");
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
-        titleLabel.setForeground(new Color(28, 46, 92));
+        titleLabel.setForeground(getForegroundColor());
         header.add(titleLabel, BorderLayout.WEST);
 
         JPanel headerRight = new JPanel();
@@ -593,7 +601,7 @@ public class MainFrame extends JFrame {
         });
 
         JScrollPane historyScroll = new JScrollPane(historyTable);
-        historyScroll.setBorder(BorderFactory.createLineBorder(new Color(208, 216, 229)));
+        historyScroll.setBorder(BorderFactory.createLineBorder(getBorderColor()));
 
         JPanel detailsCard = buildCard("Détails de la commande");
         JTextArea detailsArea = new JTextArea();
@@ -601,9 +609,9 @@ public class MainFrame extends JFrame {
         detailsArea.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         detailsArea.setLineWrap(true);
         detailsArea.setWrapStyleWord(true);
-        detailsArea.setBackground(new Color(249, 251, 254));
+        detailsArea.setBackground(getAreaBackgroundColor());
         JScrollPane detailsScroll = new JScrollPane(detailsArea);
-        detailsScroll.setBorder(BorderFactory.createLineBorder(new Color(208, 216, 229)));
+        detailsScroll.setBorder(BorderFactory.createLineBorder(getBorderColor()));
         detailsCard.add(detailsScroll, BorderLayout.CENTER);
 
         historyTable.getSelectionModel().addListSelectionListener(e -> {
@@ -785,7 +793,7 @@ public class MainFrame extends JFrame {
     private JPanel buildDeliveryTab() {
         JPanel tab = new JPanel(new BorderLayout(12, 12));
         tab.setBorder(new EmptyBorder(14, 14, 14, 14));
-        tab.setBackground(new Color(243, 246, 251));
+        tab.setBackground(getTabBackgroundColor());
 
         JPanel ordersCard = buildCard("Workflow livraison");
         DefaultTableModel deliveryModel = new DefaultTableModel(
@@ -798,12 +806,12 @@ public class MainFrame extends JFrame {
         };
         JTable deliveryTable = buildReportTable(deliveryModel);
         JScrollPane ordersScroll = new JScrollPane(deliveryTable);
-        ordersScroll.setBorder(BorderFactory.createLineBorder(new Color(208, 216, 229)));
+        ordersScroll.setBorder(BorderFactory.createLineBorder(getBorderColor()));
         ordersCard.add(ordersScroll, BorderLayout.CENTER);
 
         JLabel selectedLabel = new JLabel("Selection: aucune commande");
         selectedLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        selectedLabel.setForeground(new Color(49, 66, 100));
+        selectedLabel.setForeground(getForegroundColor());
 
         deliveryTable.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
@@ -929,7 +937,7 @@ public class MainFrame extends JFrame {
     private JPanel buildDeliverySlipTab() {
         JPanel tab = new JPanel(new BorderLayout(12, 12));
         tab.setBorder(new EmptyBorder(14, 14, 14, 14));
-        tab.setBackground(new Color(243, 246, 251));
+        tab.setBackground(getTabBackgroundColor());
 
         JButton refreshBtn = new JButton("Rafraichir");
         stylePrimaryButton(refreshBtn, new Color(98, 84, 177));
@@ -938,7 +946,7 @@ public class MainFrame extends JFrame {
         header.setOpaque(false);
         JLabel titleLabel = new JLabel("Fiches de livraison");
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
-        titleLabel.setForeground(new Color(28, 46, 92));
+        titleLabel.setForeground(getForegroundColor());
         header.add(titleLabel, BorderLayout.WEST);
         header.add(refreshBtn, BorderLayout.EAST);
 
@@ -954,7 +962,7 @@ public class MainFrame extends JFrame {
 
         JTable slipsTable = buildReportTable(slipsTableModel);
         JScrollPane slipsScroll = new JScrollPane(slipsTable);
-        slipsScroll.setBorder(BorderFactory.createLineBorder(new Color(208, 216, 229)));
+        slipsScroll.setBorder(BorderFactory.createLineBorder(getBorderColor()));
 
         JPanel detailsCard = buildCard("Résumé de livraison");
         JTextArea detailsArea = new JTextArea();
@@ -962,9 +970,9 @@ public class MainFrame extends JFrame {
         detailsArea.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         detailsArea.setLineWrap(true);
         detailsArea.setWrapStyleWord(true);
-        detailsArea.setBackground(new Color(249, 251, 254));
+        detailsArea.setBackground(getAreaBackgroundColor());
         JScrollPane detailsScroll = new JScrollPane(detailsArea);
-        detailsScroll.setBorder(BorderFactory.createLineBorder(new Color(208, 216, 229)));
+        detailsScroll.setBorder(BorderFactory.createLineBorder(getBorderColor()));
         detailsCard.add(detailsScroll, BorderLayout.CENTER);
 
         refreshBtn.addActionListener(e -> {
@@ -1050,7 +1058,7 @@ public class MainFrame extends JFrame {
     private JPanel buildAdminUserTab() {
         JPanel tab = new JPanel(new BorderLayout(12, 12));
         tab.setBorder(new EmptyBorder(14, 14, 14, 14));
-        tab.setBackground(new Color(243, 246, 251));
+        tab.setBackground(getTabBackgroundColor());
 
         JPanel headerCard = buildCard("Gestion des comptes");
         JPanel headerRow = new JPanel(new BorderLayout(10, 10));
@@ -1061,10 +1069,10 @@ public class MainFrame extends JFrame {
         headerText.setLayout(new BoxLayout(headerText, BoxLayout.Y_AXIS));
         JLabel title = new JLabel("Comptes utilisateurs");
         title.setFont(new Font("Segoe UI", Font.BOLD, 20));
-        title.setForeground(new Color(28, 46, 92));
+        title.setForeground(getForegroundColor());
         JLabel subtitle = new JLabel("Recherche, consultation et suppression de comptes");
         subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        subtitle.setForeground(new Color(90, 99, 120));
+        subtitle.setForeground(getSubtitleColor());
         headerText.add(title);
         headerText.add(Box.createVerticalStrut(3));
         headerText.add(subtitle);
@@ -1092,7 +1100,7 @@ public class MainFrame extends JFrame {
         usersTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
         usersTable.setFillsViewportHeight(true);
         usersTable.setShowGrid(false);
-        usersTable.setBackground(new Color(249, 251, 254));
+        usersTable.setBackground(getAreaBackgroundColor());
         usersTable.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
             @Override
             public java.awt.Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
@@ -1108,7 +1116,7 @@ public class MainFrame extends JFrame {
 
         JPanel tableCard = buildCard("Liste des comptes");
         JScrollPane tableScroll = new JScrollPane(usersTable);
-        tableScroll.setBorder(BorderFactory.createLineBorder(new Color(208, 216, 229)));
+        tableScroll.setBorder(BorderFactory.createLineBorder(getBorderColor()));
         tableCard.add(tableScroll, BorderLayout.CENTER);
 
         JPanel detailCard = buildCard("Détails du compte");
@@ -1117,7 +1125,7 @@ public class MainFrame extends JFrame {
         detailPanel.setLayout(new BoxLayout(detailPanel, BoxLayout.Y_AXIS));
 
         adminSelectedUserLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
-        adminSelectedUserLabel.setForeground(new Color(29, 44, 78));
+        adminSelectedUserLabel.setForeground(getForegroundColor());
         adminSelectedRoleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         adminSelectedStatusLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         adminSelectedLinkedLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
@@ -1444,7 +1452,7 @@ public class MainFrame extends JFrame {
     private JPanel buildOrderTab() {
         JPanel tab = new JPanel(new BorderLayout(12, 12));
         tab.setBorder(new EmptyBorder(14, 14, 14, 14));
-        tab.setBackground(new Color(243, 246, 251));
+        tab.setBackground(getTabBackgroundColor());
 
         JPanel pickerCard = buildCard("Choix client et livreur");
         JPanel pickerGrid = new JPanel(new GridLayout(2, 2, 10, 10));
@@ -1475,7 +1483,7 @@ public class MainFrame extends JFrame {
         pizzaGrid.add(quantiteSpinner);
 
         pizzaDetailsLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        pizzaDetailsLabel.setForeground(new Color(49, 66, 100));
+        pizzaDetailsLabel.setForeground(getForegroundColor());
         pizzaDetailsLabel.setBorder(new EmptyBorder(8, 0, 8, 0));
 
         JButton addLineBtn = new JButton("Ajouter au panier");
@@ -1494,7 +1502,7 @@ public class MainFrame extends JFrame {
         cartList.setFont(new Font("Consolas", Font.PLAIN, 12));
         cartList.setVisibleRowCount(6);
         JScrollPane cartScroll = new JScrollPane(cartList);
-        cartScroll.setBorder(BorderFactory.createLineBorder(new Color(208, 216, 229)));
+        cartScroll.setBorder(BorderFactory.createLineBorder(getBorderColor()));
 
         JButton removeBtn = new JButton("Retirer");
         JButton clearBtn = new JButton("Vider");
@@ -1555,10 +1563,10 @@ public class MainFrame extends JFrame {
         outputArea.setLineWrap(true);
         outputArea.setWrapStyleWord(true);
         outputArea.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        outputArea.setBackground(new Color(249, 251, 254));
+        outputArea.setBackground(getAreaBackgroundColor());
         outputArea.setText("Pret. Selectionne client, livreur et pizzas pour creer une commande.");
         JScrollPane outputScroll = new JScrollPane(outputArea);
-        outputScroll.setBorder(BorderFactory.createLineBorder(new Color(208, 216, 229)));
+        outputScroll.setBorder(BorderFactory.createLineBorder(getBorderColor()));
         output.add(outputScroll, BorderLayout.CENTER);
         right.add(output);
 
@@ -1578,7 +1586,7 @@ public class MainFrame extends JFrame {
     private JPanel buildAccountTab() {
         JPanel tab = new JPanel(new BorderLayout(12, 12));
         tab.setBorder(new EmptyBorder(14, 14, 14, 14));
-        tab.setBackground(new Color(243, 246, 251));
+        tab.setBackground(getTabBackgroundColor());
 
         JPanel balanceCard = buildCard("Consultation solde");
         JPanel balanceGrid = new JPanel(new GridLayout(1, 1, 10, 10));
@@ -1690,7 +1698,7 @@ public class MainFrame extends JFrame {
     private JPanel buildDashboardTab() {
         JPanel tab = new JPanel(new BorderLayout(12, 12));
         tab.setBorder(new EmptyBorder(14, 14, 14, 14));
-        tab.setBackground(new Color(243, 246, 251));
+        tab.setBackground(getTabBackgroundColor());
 
         JButton refreshDashBtn = new JButton("Rafraichir");
         stylePrimaryButton(refreshDashBtn, new Color(98, 84, 177));
@@ -1700,7 +1708,7 @@ public class MainFrame extends JFrame {
         dashTop.setOpaque(false);
         JLabel title = new JLabel("Dashboard administrateur");
         title.setFont(new Font("Segoe UI", Font.BOLD, 18));
-        title.setForeground(new Color(28, 46, 92));
+        title.setForeground(getForegroundColor());
         dashTop.add(title, BorderLayout.WEST);
         dashTop.add(refreshDashBtn, BorderLayout.EAST);
 
@@ -1886,7 +1894,7 @@ public class MainFrame extends JFrame {
         table.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
         table.setShowGrid(false);
         table.setFillsViewportHeight(true);
-        table.setBackground(new Color(249, 251, 254));
+        table.setBackground(getAreaBackgroundColor());
         table.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
             @Override
             public java.awt.Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
@@ -1904,14 +1912,14 @@ public class MainFrame extends JFrame {
 
     private JPanel buildMetricCard(String title, JLabel valueLabel, Color accent) {
         JPanel card = new JPanel(new BorderLayout(6, 6));
-        card.setBackground(Color.WHITE);
+        card.setBackground(getCardColor());
         card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(218, 226, 239)),
+                BorderFactory.createLineBorder(getBorderColor()),
                 new EmptyBorder(12, 12, 12, 12)));
 
         JLabel titleLabel = new JLabel(title);
         titleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        titleLabel.setForeground(new Color(90, 99, 120));
+        titleLabel.setForeground(getSubtitleColor());
 
         valueLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
         valueLabel.setForeground(accent);
@@ -1936,14 +1944,14 @@ public class MainFrame extends JFrame {
     private JPanel buildCard(String title) {
         JPanel card = new JPanel(new BorderLayout(8, 8));
         card.setOpaque(true);
-        card.setBackground(Color.WHITE);
+        card.setBackground(getCardColor());
         card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(218, 226, 239)),
+                BorderFactory.createLineBorder(getBorderColor()),
                 new EmptyBorder(12, 12, 12, 12)));
 
         JLabel cardTitle = new JLabel(title);
         cardTitle.setFont(new Font("Segoe UI", Font.BOLD, 15));
-        cardTitle.setForeground(new Color(29, 44, 78));
+        cardTitle.setForeground(getForegroundColor());
         cardTitle.setBorder(new EmptyBorder(0, 0, 6, 0));
         card.add(cardTitle, BorderLayout.NORTH);
         return card;
@@ -1951,7 +1959,7 @@ public class MainFrame extends JFrame {
 
     private JLabel buildLabel(String text) {
         JLabel label = new JLabel(text);
-        label.setForeground(new Color(49, 66, 100));
+        label.setForeground(getForegroundColor());
         label.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         return label;
     }
@@ -2193,3 +2201,14 @@ public class MainFrame extends JFrame {
         }
     }
 }
+
+
+
+
+
+
+
+
+
+
+

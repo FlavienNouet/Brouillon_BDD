@@ -275,9 +275,20 @@ public class LoginFrame extends JFrame {
             UIManager.put("ProgressBar.arc", 18);
             UIManager.put("Component.focusWidth", 1);
             UIManager.put("Button.innerFocusWidth", 0);
+            
+            // Force text color for visibility in both themes
+            UIManager.put("TextComponent.foreground", isDarkTheme ? Color.WHITE : new Color(24, 28, 33));
 
             GradientHeader.setDarkTheme(isDarkTheme);
             SwingUtilities.updateComponentTreeUI(this);
+            
+            // Update text field colors directly
+            Color textColor = isDarkTheme ? Color.WHITE : new Color(24, 28, 33);
+            loginField.field.setForeground(textColor);
+            loginField.field.setCaretColor(textColor);
+            passwordField.field.setForeground(textColor);
+            passwordField.field.setCaretColor(textColor);
+            
             mainPanel = createMainContent();
             setContentPane(mainPanel);
             revalidate();
@@ -305,6 +316,7 @@ public class LoginFrame extends JFrame {
 
             UIManager.put("TextField.background", Color.WHITE);
             UIManager.put("PasswordField.background", Color.WHITE);
+            UIManager.put("TextComponent.foreground", new Color(24, 28, 33));
         } catch (Exception e) {
             e.printStackTrace();
         }
