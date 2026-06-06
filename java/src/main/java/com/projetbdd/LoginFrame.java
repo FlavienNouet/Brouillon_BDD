@@ -1,6 +1,7 @@
 package com.projetbdd;
 
 import com.formdev.flatlaf.FlatLightLaf;
+import com.formdev.flatlaf.FlatDarculaLaf;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -10,9 +11,11 @@ import java.awt.*;
 import java.awt.geom.RoundRectangle2D;
 
 public class LoginFrame extends JFrame {
+    private static boolean isDarkTheme = false;
     private final UserService userService = new UserService();
     private final ModernTextField loginField = new ModernTextField("Entre ton identifiant");
     private final ModernPasswordField passwordField = new ModernPasswordField("Entre ton mot de passe");
+    private JPanel mainPanel;
 
     public LoginFrame() {
         super("RaPizz - Connexion");
@@ -20,24 +23,62 @@ public class LoginFrame extends JFrame {
         applyLookAndFeelDefaults();
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(600, 750);
-        setMinimumSize(new Dimension(500, 650));
+        setSize(700, 850);
+        setMinimumSize(new Dimension(600, 750));
         setLocationRelativeTo(null);
         setResizable(true);
-        setContentPane(createMainContent());
+        mainPanel = createMainContent();
+        setContentPane(mainPanel);
     }
 
     private JPanel createMainContent() {
-        JPanel root = new JPanel(new GridBagLayout());
-        root.setBackground(new Color(245, 247, 250));
-        root.setBorder(new EmptyBorder(30, 30, 30, 30));
+        JPanel mainWrapper = new JPanel(new BorderLayout());
+        mainWrapper.setBackground(isDarkTheme ? new Color(30, 30, 35) : new Color(245, 247, 250));
 
         JPanel card = new JPanel();
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
-        card.setBackground(Color.WHITE);
-        card.setBorder(new EmptyBorder(36, 36, 36, 36));
-        card.setPreferredSize(new Dimension(500, 620));
+        card.setBackground(isDarkTheme ? new Color(45, 45, 50) : Color.WHITE);
+        card.setBorder(new EmptyBorder(20, 36, 36, 36));
         card.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+
+        JPanel headerCard = new JPanel(new BorderLayout());
+        headerCard.setOpaque(false);
+        headerCard.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
+        headerCard.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        JPanel buttonPanel = new JPanel(new BorderLayout());
+        buttonPanel.setOpaque(false);
+        buttonPanel.setPreferredSize(new Dimension(40, 40));
+
+        JLabel themeLabel = new JLabel("🌙");
+        if (isDarkTheme) {
+            themeLabel.setText("☀️");
+        }
+        themeLabel.setFont(new Font(null, Font.PLAIN, 20));
+        themeLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        themeLabel.setVerticalAlignment(SwingConstants.CENTER);
+
+        JButton themeButton = new JButton();
+        themeButton.setLayout(new BorderLayout());
+        themeButton.add(themeLabel, BorderLayout.CENTER);
+        themeButton.setBackground(isDarkTheme ? new Color(50, 50, 55) : new Color(220, 224, 230));
+        themeButton.setForeground(isDarkTheme ? Color.WHITE : new Color(24, 28, 33));
+        themeButton.setFocusPainted(false);
+        themeButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        themeButton.setPreferredSize(new Dimension(40, 40));
+        themeButton.setMargin(new Insets(0, 0, 0, 0));
+        themeButton.setOpaque(true);
+        themeButton.setBorderPainted(false);
+        themeButton.setContentAreaFilled(true);
+        themeButton.setFocusable(false);
+
+        themeButton.addActionListener(e -> {
+            isDarkTheme = !isDarkTheme;
+            toggleTheme();
+        });
+
+        headerCard.add(themeButton, BorderLayout.EAST);
+        card.add(headerCard);
 
         PizzaLogo logo = new PizzaLogo();
         logo.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -49,12 +90,12 @@ public class LoginFrame extends JFrame {
 
         JLabel title = new JLabel("Connexion");
         title.setFont(new Font("Segoe UI", Font.BOLD, 30));
-        title.setForeground(new Color(24, 28, 33));
+        title.setForeground(isDarkTheme ? Color.WHITE : new Color(24, 28, 33));
         title.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         JLabel subtitle = new JLabel("Accède à ton espace client");
         subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        subtitle.setForeground(new Color(110, 118, 129));
+        subtitle.setForeground(isDarkTheme ? new Color(180, 180, 190) : new Color(110, 118, 129));
         subtitle.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         card.add(logo);
@@ -103,12 +144,12 @@ public class LoginFrame extends JFrame {
 
         JLabel footer = new JLabel("Application de gestion de pizzas prépayées");
         footer.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        footer.setForeground(new Color(140, 146, 155));
+        footer.setForeground(isDarkTheme ? new Color(120, 120, 130) : new Color(140, 146, 155));
         footer.setAlignmentX(Component.CENTER_ALIGNMENT);
         card.add(footer);
 
-        root.add(card);
-        return root;
+        mainWrapper.add(card, BorderLayout.CENTER);
+        return mainWrapper;
     }
 
     private JPanel createCenteredLabelPanel(String text) {
@@ -119,7 +160,7 @@ public class LoginFrame extends JFrame {
 
         JLabel label = new JLabel(text);
         label.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        label.setForeground(new Color(45, 51, 59));
+        label.setForeground(isDarkTheme ? new Color(200, 200, 210) : new Color(45, 51, 59));
         label.setHorizontalAlignment(SwingConstants.CENTER);
 
         panel.add(label);
@@ -143,8 +184,8 @@ public class LoginFrame extends JFrame {
         button.setFont(new Font("Segoe UI", Font.BOLD, 14));
         button.setFocusPainted(false);
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        button.setBackground(new Color(240, 242, 245));
-        button.setForeground(new Color(33, 37, 41));
+        button.setBackground(isDarkTheme ? new Color(60, 60, 65) : new Color(240, 242, 245));
+        button.setForeground(isDarkTheme ? Color.WHITE : new Color(33, 37, 41));
         button.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
         button.setPreferredSize(new Dimension(330, 44));
         return button;
@@ -219,6 +260,31 @@ public class LoginFrame extends JFrame {
         }
     }
 
+    private void toggleTheme() {
+        try {
+            if (isDarkTheme) {
+                FlatDarculaLaf.setup();
+            } else {
+                FlatLightLaf.setup();
+            }
+
+            UIManager.put("Button.arc", 18);
+            UIManager.put("Component.arc", 18);
+            UIManager.put("TextComponent.arc", 18);
+            UIManager.put("ProgressBar.arc", 18);
+            UIManager.put("Component.focusWidth", 1);
+            UIManager.put("Button.innerFocusWidth", 0);
+
+            SwingUtilities.updateComponentTreeUI(this);
+            mainPanel = createMainContent();
+            setContentPane(mainPanel);
+            revalidate();
+            repaint();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     private void applyLookAndFeelDefaults() {
         try {
             FlatLightLaf.setup();
@@ -271,26 +337,49 @@ public class LoginFrame extends JFrame {
             int w = 60;
             int h = 60;
 
-            g2.setColor(new Color(255, 243, 214));
-            g2.fillOval(x, y, w, h);
+            if (isDarkTheme) {
+                g2.setColor(new Color(70, 50, 30));
+                g2.fillOval(x, y, w, h);
 
-            g2.setColor(new Color(236, 159, 90));
-            g2.setStroke(new BasicStroke(6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-            g2.drawOval(x + 2, y + 2, w - 4, h - 4);
+                g2.setColor(new Color(180, 120, 80));
+                g2.setStroke(new BasicStroke(6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.drawOval(x + 2, y + 2, w - 4, h - 4);
 
-            g2.setColor(new Color(230, 74, 25));
-            g2.fillOval(x + 14, y + 14, 10, 10);
-            g2.fillOval(x + 34, y + 18, 10, 10);
-            g2.fillOval(x + 24, y + 34, 10, 10);
+                g2.setColor(new Color(220, 100, 50));
+                g2.fillOval(x + 14, y + 14, 10, 10);
+                g2.fillOval(x + 34, y + 18, 10, 10);
+                g2.fillOval(x + 24, y + 34, 10, 10);
 
-            g2.setColor(new Color(67, 160, 71));
-            g2.fill(new RoundRectangle2D.Double(x + 20, y + 16, 10, 4, 4, 4));
-            g2.fill(new RoundRectangle2D.Double(x + 40, y + 30, 10, 4, 4, 4));
-            g2.fill(new RoundRectangle2D.Double(x + 16, y + 42, 10, 4, 4, 4));
+                g2.setColor(new Color(100, 180, 100));
+                g2.fill(new RoundRectangle2D.Double(x + 20, y + 16, 10, 4, 4, 4));
+                g2.fill(new RoundRectangle2D.Double(x + 40, y + 30, 10, 4, 4, 4));
+                g2.fill(new RoundRectangle2D.Double(x + 16, y + 42, 10, 4, 4, 4));
 
-            g2.setColor(new Color(255, 255, 255, 180));
-            g2.setStroke(new BasicStroke(2f));
-            g2.drawArc(x + 12, y + 10, 18, 12, 20, 140);
+                g2.setColor(new Color(150, 150, 150, 150));
+                g2.setStroke(new BasicStroke(2f));
+                g2.drawArc(x + 12, y + 10, 18, 12, 20, 140);
+            } else {
+                g2.setColor(new Color(255, 243, 214));
+                g2.fillOval(x, y, w, h);
+
+                g2.setColor(new Color(236, 159, 90));
+                g2.setStroke(new BasicStroke(6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.drawOval(x + 2, y + 2, w - 4, h - 4);
+
+                g2.setColor(new Color(230, 74, 25));
+                g2.fillOval(x + 14, y + 14, 10, 10);
+                g2.fillOval(x + 34, y + 18, 10, 10);
+                g2.fillOval(x + 24, y + 34, 10, 10);
+
+                g2.setColor(new Color(67, 160, 71));
+                g2.fill(new RoundRectangle2D.Double(x + 20, y + 16, 10, 4, 4, 4));
+                g2.fill(new RoundRectangle2D.Double(x + 40, y + 30, 10, 4, 4, 4));
+                g2.fill(new RoundRectangle2D.Double(x + 16, y + 42, 10, 4, 4, 4));
+
+                g2.setColor(new Color(255, 255, 255, 180));
+                g2.setStroke(new BasicStroke(2f));
+                g2.drawArc(x + 12, y + 10, 18, 12, 20, 140);
+            }
 
             g2.dispose();
         }
@@ -312,8 +401,8 @@ public class LoginFrame extends JFrame {
             field.setOpaque(false);
             field.setBorder(new EmptyBorder(0, 16, 0, 16));
             field.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-            field.setForeground(new Color(24, 28, 33));
-            field.setCaretColor(new Color(24, 28, 33));
+            field.setForeground(isDarkTheme ? Color.WHITE : new Color(24, 28, 33));
+            field.setCaretColor(isDarkTheme ? Color.WHITE : new Color(24, 28, 33));
 
             field.addFocusListener(new java.awt.event.FocusAdapter() {
                 @Override
@@ -377,15 +466,15 @@ public class LoginFrame extends JFrame {
             int h = getHeight();
             int inset = 1;
 
-            g2.setColor(new Color(248, 250, 252));
+            g2.setColor(isDarkTheme ? new Color(50, 50, 55) : new Color(248, 250, 252));
             g2.fillRoundRect(inset, inset, w - inset * 2 - 1, h - inset * 2 - 1, 22, 22);
 
-            g2.setColor(focused ? new Color(28, 100, 242) : new Color(220, 224, 230));
+            g2.setColor(focused ? new Color(28, 100, 242) : (isDarkTheme ? new Color(70, 70, 75) : new Color(220, 224, 230)));
             g2.setStroke(new BasicStroke(focused ? 2f : 1f));
             g2.drawRoundRect(inset, inset, w - inset * 2 - 1, h - inset * 2 - 1, 22, 22);
 
             if (field.getText().isEmpty() && !field.hasFocus()) {
-                g2.setColor(new Color(145, 152, 161));
+                g2.setColor(isDarkTheme ? new Color(120, 120, 130) : new Color(145, 152, 161));
                 g2.setFont(new Font("Segoe UI", Font.PLAIN, 14));
                 FontMetrics fm = g2.getFontMetrics();
                 int textY = (h - fm.getHeight()) / 2 + fm.getAscent();
@@ -416,8 +505,8 @@ public class LoginFrame extends JFrame {
             field.setOpaque(false);
             field.setBorder(new EmptyBorder(0, 16, 0, 6));
             field.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-            field.setForeground(new Color(24, 28, 33));
-            field.setCaretColor(new Color(24, 28, 33));
+            field.setForeground(isDarkTheme ? Color.WHITE : new Color(24, 28, 33));
+            field.setCaretColor(isDarkTheme ? Color.WHITE : new Color(24, 28, 33));
             defaultEchoChar = field.getEchoChar();
 
             toggleButton.setFont(new Font("Segoe UI", Font.PLAIN, 12));
@@ -495,15 +584,16 @@ public class LoginFrame extends JFrame {
             int h = getHeight();
             int inset = 1;
 
-            g2.setColor(new Color(248, 250, 252));
+            g2.setColor(isDarkTheme ? new Color(50, 50, 55) : new Color(248, 250, 252));
             g2.fillRoundRect(inset, inset, w - inset * 2 - 1, h - inset * 2 - 1, 22, 22);
 
-            g2.setColor(focused ? new Color(28, 100, 242) : new Color(220, 224, 230));
+            g2.setColor(focused ? new Color(28, 100, 242)
+                    : (isDarkTheme ? new Color(70, 70, 75) : new Color(220, 224, 230)));
             g2.setStroke(new BasicStroke(focused ? 2f : 1f));
             g2.drawRoundRect(inset, inset, w - inset * 2 - 1, h - inset * 2 - 1, 22, 22);
 
             if (field.getPassword().length == 0 && !field.hasFocus()) {
-                g2.setColor(new Color(145, 152, 161));
+                g2.setColor(isDarkTheme ? new Color(120, 120, 130) : new Color(145, 152, 161));
                 g2.setFont(new Font("Segoe UI", Font.PLAIN, 14));
                 FontMetrics fm = g2.getFontMetrics();
                 int textY = (h - fm.getHeight()) / 2 + fm.getAscent();
