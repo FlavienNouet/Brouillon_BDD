@@ -244,14 +244,22 @@ public class LoginFrame extends JFrame {
         }
 
         if (userService.createUser(login, password, "CLIENT", null, null)) {
-            JOptionPane.showMessageDialog(
-                    this,
-                    "Inscription réussie ! Vous pouvez maintenant vous connecter.",
-                    "Succès",
-                    JOptionPane.INFORMATION_MESSAGE);
-            loginField.setText("");
-            passwordField.setText("");
-            passwordField.hidePassword();
+            // Auto-login après création
+            if (userService.authenticate(login, password)) {
+                MainFrame.setDarkTheme(isDarkTheme);
+                dispose();
+                MainFrame mainFrame = new MainFrame();
+                mainFrame.setVisible(true);
+            } else {
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Inscription réussie mais erreur lors de la connexion. Veuillez vous connecter manuellement.",
+                        "Attention",
+                        JOptionPane.WARNING_MESSAGE);
+                loginField.setText("");
+                passwordField.setText("");
+                passwordField.hidePassword();
+            }
         } else {
             JOptionPane.showMessageDialog(
                     this,
@@ -282,12 +290,17 @@ public class LoginFrame extends JFrame {
             GradientHeader.setDarkTheme(isDarkTheme);
             SwingUtilities.updateComponentTreeUI(this);
             
-            // Update text field colors directly
-            Color textColor = isDarkTheme ? Color.WHITE : new Color(24, 28, 33);
-            loginField.field.setForeground(textColor);
-            loginField.field.setCaretColor(textColor);
-            passwordField.field.setForeground(textColor);
-            passwordField.field.setCaretColor(textColor);
+            // Update text field colors directly (safe check)
+            if (loginField != null && loginField.field != null) {
+                Color textColor = isDarkTheme ? Color.WHITE : new Color(24, 28, 33);
+                loginField.field.setForeground(textColor);
+                loginField.field.setCaretColor(textColor);
+            }
+            if (passwordField != null && passwordField.field != null) {
+                Color textColor = isDarkTheme ? Color.WHITE : new Color(24, 28, 33);
+                passwordField.field.setForeground(textColor);
+                passwordField.field.setCaretColor(textColor);
+            }
             
             mainPanel = createMainContent();
             setContentPane(mainPanel);

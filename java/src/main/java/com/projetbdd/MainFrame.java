@@ -662,6 +662,10 @@ public class MainFrame extends JFrame {
         refreshBtn.addActionListener(e -> {
             new Thread(() -> {
                 try {
+                    if (session.getIdClient() == null) {
+                        SwingUtilities.invokeLater(() -> showOutput("Erreur: compte client non initialisé."));
+                        return;
+                    }
                     List<PizzaService.OrderHistory> history = service.getOrderHistory(session.getIdClient());
                     SwingUtilities.invokeLater(() -> {
                         historyTableModel.setRowCount(0);
@@ -2015,7 +2019,7 @@ public class MainFrame extends JFrame {
     }
 
     private void refreshFidelityLabel() {
-        if (!session.isClient()) {
+        if (!session.isClient() || session.getIdClient() == null) {
             return;
         }
         try {
