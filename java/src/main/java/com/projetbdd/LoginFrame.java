@@ -206,6 +206,7 @@ public class LoginFrame extends JFrame {
 
         if (userService.authenticate(login, password)) {
             Session session = Session.getInstance();
+            MainFrame.setDarkTheme(isDarkTheme);
             dispose();
             MainFrame mainFrame = new MainFrame();
             mainFrame.setVisible(true);
@@ -275,6 +276,7 @@ public class LoginFrame extends JFrame {
             UIManager.put("Component.focusWidth", 1);
             UIManager.put("Button.innerFocusWidth", 0);
 
+            GradientHeader.setDarkTheme(isDarkTheme);
             SwingUtilities.updateComponentTreeUI(this);
             mainPanel = createMainContent();
             setContentPane(mainPanel);

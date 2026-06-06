@@ -44,13 +44,16 @@ import com.itextpdf.layout.properties.UnitValue;
 import java.io.File;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridLayout;
+import java.awt.Insets;
 import java.awt.RenderingHints;
+import javax.swing.SwingConstants;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Connection;
@@ -62,6 +65,7 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 public class MainFrame extends JFrame {
+    private static boolean isDarkTheme = false;
     private final PizzaService service = new PizzaService();
     private final UserService userService = new UserService();
     private final Session session = Session.getInstance();
@@ -90,7 +94,8 @@ public class MainFrame extends JFrame {
     private final JLabel averageOrdersValueLabel = new JLabel("0.00");
     private final JLabel aboveAverageValueLabel = new JLabel("0");
     private final JLabel totalClientsValueLabel = new JLabel("0");
-    private final DefaultTableModel adminUsersTableModel = new DefaultTableModel(new Object[]{"ID", "Login", "Role", "Client", "Livreur", "Actif", "Création"}, 0) {
+    private final DefaultTableModel adminUsersTableModel = new DefaultTableModel(
+            new Object[] { "ID", "Login", "Role", "Client", "Livreur", "Actif", "Création" }, 0) {
         @Override
         public boolean isCellEditable(int row, int column) {
             return false;
@@ -102,19 +107,22 @@ public class MainFrame extends JFrame {
     private final JLabel adminSelectedStatusLabel = new JLabel("-");
     private final JLabel adminSelectedLinkedLabel = new JLabel("-");
     private final JTextField adminSearchField = new JTextField();
-    private final DefaultTableModel vehiclesTableModel = new DefaultTableModel(new Object[]{"ID", "Type", "Immatriculation", "Actif"}, 0) {
+    private final DefaultTableModel vehiclesTableModel = new DefaultTableModel(
+            new Object[] { "ID", "Type", "Immatriculation", "Actif" }, 0) {
         @Override
         public boolean isCellEditable(int row, int column) {
             return false;
         }
     };
-    private final DefaultTableModel ordersTableModel = new DefaultTableModel(new Object[]{"ID Client", "Client", "Nombre de commandes"}, 0) {
+    private final DefaultTableModel ordersTableModel = new DefaultTableModel(
+            new Object[] { "ID Client", "Client", "Nombre de commandes" }, 0) {
         @Override
         public boolean isCellEditable(int row, int column) {
             return false;
         }
     };
-    private final DefaultTableModel aboveAverageTableModel = new DefaultTableModel(new Object[]{"ID Client", "Client", "Commandes"}, 0) {
+    private final DefaultTableModel aboveAverageTableModel = new DefaultTableModel(
+            new Object[] { "ID Client", "Client", "Commandes" }, 0) {
         @Override
         public boolean isCellEditable(int row, int column) {
             return false;
@@ -155,7 +163,7 @@ public class MainFrame extends JFrame {
 
         String subtitle = "Plateforme prepayee - " + session.getLogin() + " [" + session.getRole() + "]";
         JLabel subtitleLabel = new JLabel(subtitle);
-        subtitleLabel.setForeground(new Color(227, 238, 255));
+        subtitleLabel.setForeground(getSubtitleColor());
         subtitleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
 
         titlePanel.add(title);
@@ -164,22 +172,51 @@ public class MainFrame extends JFrame {
 
         JButton logoutBtn = new JButton("Déconnexion");
         logoutBtn.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-        logoutBtn.setBackground(new Color(200, 50, 50));
+        logoutBtn.setBackground(isDarkTheme ? new Color(180, 60, 60) : new Color(200, 50, 50));
         logoutBtn.setForeground(Color.WHITE);
         logoutBtn.setFocusPainted(false);
         logoutBtn.addActionListener(e -> handleLogout());
 
-        JPanel headerCenter = new JPanel();
-        headerCenter.setOpaque(false);
-        headerCenter.add(titlePanel);
+        JLabel themeLabel = new JLabel("🌙");
+        if (isDarkTheme) {
+            themeLabel.setText("☀️");
+        }
+        themeLabel.setFont(new Font(null, Font.PLAIN, 20));
+        themeLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        themeLabel.setVerticalAlignment(SwingConstants.CENTER);
+
+        JButton themeButton = new JButton();
+        themeButton.setLayout(new BorderLayout());
+        themeButton.add(themeLabel, BorderLayout.CENTER);
+        themeButton.setBackground(isDarkTheme ? new Color(50, 50, 55) : new Color(220, 224, 230));
+        themeButton.setForeground(isDarkTheme ? Color.WHITE : new Color(24, 28, 33));
+        themeButton.setFocusPainted(false);
+        themeButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        themeButton.setPreferredSize(new Dimension(40, 40));
+        themeButton.setMargin(new Insets(0, 0, 0, 0));
+        themeButton.setOpaque(true);
+        themeButton.setBorderPainted(false);
+        themeButton.setContentAreaFilled(true);
+        themeButton.setFocusable(false);
+
+        themeButton.addActionListener(e -> {
+            isDarkTheme = !isDarkTheme;
+            toggleTheme();
+        });
+
+        JPanel headerRight = new JPanel(new BorderLayout());
+        headerRight.setOpaque(false);
+        headerRight.add(themeButton, BorderLayout.WEST);
+        headerRight.add(Box.createHorizontalStrut(10), BorderLayout.CENTER);
+        headerRight.add(logoutBtn, BorderLayout.EAST);
 
         header.add(titlePanel, BorderLayout.CENTER);
-        header.add(logoutBtn, BorderLayout.EAST);
+        header.add(headerRight, BorderLayout.EAST);
         add(header, BorderLayout.NORTH);
 
         JTabbedPane tabs = new JTabbedPane();
         tabs.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        tabs.setBackground(new Color(243, 246, 251));
+        tabs.setBackground(getBackgroundColor());
 
         // Ajouter les tabs selon le rôle
         if (session.isClient()) {
@@ -199,6 +236,58 @@ public class MainFrame extends JFrame {
         add(tabs, BorderLayout.CENTER);
 
         refreshData();
+    }
+
+    public static void setDarkTheme(boolean dark) {
+        isDarkTheme = dark;
+    }
+
+    public static boolean isDarkThemeMode() {
+        return isDarkTheme;
+    }
+
+    private Color getBackgroundColor() {
+        return isDarkTheme ? new Color(30, 30, 35) : new Color(243, 246, 251);
+    }
+
+    private Color getCardColor() {
+        return isDarkTheme ? new Color(45, 45, 50) : Color.WHITE;
+    }
+
+    private Color getForegroundColor() {
+        return isDarkTheme ? Color.WHITE : new Color(49, 66, 100);
+    }
+
+    private Color getSubtitleColor() {
+        return isDarkTheme ? new Color(180, 180, 190) : new Color(227, 238, 255);
+    }
+
+    private Color getBorderColor() {
+        return isDarkTheme ? new Color(70, 70, 75) : new Color(208, 216, 229);
+    }
+
+    private void toggleTheme() {
+        try {
+            if (isDarkTheme) {
+                com.formdev.flatlaf.FlatDarculaLaf.setup();
+            } else {
+                com.formdev.flatlaf.FlatLightLaf.setup();
+            }
+
+            UIManager.put("Button.arc", 18);
+            UIManager.put("Component.arc", 18);
+            UIManager.put("TextComponent.arc", 18);
+            UIManager.put("ProgressBar.arc", 18);
+            UIManager.put("Component.focusWidth", 1);
+            UIManager.put("Button.innerFocusWidth", 0);
+
+            GradientHeader.setDarkTheme(isDarkTheme);
+            SwingUtilities.updateComponentTreeUI(this);
+            revalidate();
+            repaint();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private void handleLogout() {
@@ -322,14 +411,14 @@ public class MainFrame extends JFrame {
         trackingCard.add(trackingContent, BorderLayout.CENTER);
         right.add(trackingCard);
         right.add(Box.createVerticalStrut(10));
-        
+
         JPanel fidelityCard = buildCard("Programme de fidelite");
         fidelityLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
         fidelityLabel.setForeground(new Color(236, 143, 25));
         fidelityCard.add(fidelityLabel, BorderLayout.CENTER);
         right.add(fidelityCard);
         right.add(Box.createVerticalStrut(10));
-        
+
         right.add(cartCard);
         right.add(Box.createVerticalStrut(10));
 
@@ -462,7 +551,7 @@ public class MainFrame extends JFrame {
         header.add(headerRight, BorderLayout.EAST);
 
         DefaultTableModel historyTableModel = new DefaultTableModel(
-                new Object[]{"Commande #", "Date", "Montant", "Statut", "Pizzas", ""},
+                new Object[] { "Commande #", "Date", "Montant", "Statut", "Pizzas", "" },
                 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -472,12 +561,12 @@ public class MainFrame extends JFrame {
 
         JTable historyTable = buildReportTable(historyTableModel);
         historyTable.setRowHeight(40);
-        
+
         // Colonne action avec bouton
         historyTable.getColumnModel().getColumn(5).setPreferredWidth(100);
         historyTable.getColumnModel().getColumn(5).setMaxWidth(120);
         historyTable.getColumnModel().getColumn(5).setMinWidth(90);
-        
+
         historyTable.getColumnModel().getColumn(5).setCellRenderer((table, value, isSelected, hasFocus, row, col) -> {
             JButton btn = new JButton("Télécharger");
             btn.setFont(new Font("Segoe UI", Font.PLAIN, 11));
@@ -488,21 +577,21 @@ public class MainFrame extends JFrame {
             btn.setOpaque(true);
             return btn;
         });
-        
+
         // Ajouter MouseListener pour gérer les clics sur le bouton
         historyTable.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
             public void mouseClicked(java.awt.event.MouseEvent e) {
                 int row = historyTable.rowAtPoint(e.getPoint());
                 int col = historyTable.columnAtPoint(e.getPoint());
-                
+
                 if (row >= 0 && col == 5) {
                     long idCommande = (long) historyTableModel.getValueAt(row, 0);
                     downloadPdfForOrder(idCommande);
                 }
             }
         });
-        
+
         JScrollPane historyScroll = new JScrollPane(historyTable);
         historyScroll.setBorder(BorderFactory.createLineBorder(new Color(208, 216, 229)));
 
@@ -527,7 +616,7 @@ public class MainFrame extends JFrame {
                             .filter(o -> o.idCommande == idCommande)
                             .findFirst()
                             .orElse(null);
-                    
+
                     if (order != null) {
                         StringBuilder details = new StringBuilder();
                         details.append("DÉTAILS COMMANDE #").append(order.idCommande).append("\n");
@@ -536,21 +625,24 @@ public class MainFrame extends JFrame {
                         details.append("Statut: ").append(order.statut).append("\n\n");
                         details.append("ARTICLES:\n");
                         details.append("-".repeat(60)).append("\n");
-                        
+
                         for (PizzaService.OrderLineDetail ligne : order.lignes) {
-                            details.append("\n🍕 ").append(ligne.nomPizza).append(" (").append(ligne.taille).append(")\n");
+                            details.append("\n🍕 ").append(ligne.nomPizza).append(" (").append(ligne.taille)
+                                    .append(")\n");
                             details.append("   Quantité: ").append(ligne.quantite).append("\n");
                             details.append("   Prix unitaire: ").append(ligne.prixUnitaire).append(" EUR\n");
                             if (ligne.estGratuite) {
                                 details.append("   🎉 GRATUITE (fidélité ou retard)\n");
                             } else {
-                                details.append("   Sous-total: ").append(ligne.prixUnitaire.multiply(BigDecimal.valueOf(ligne.quantite))).append(" EUR\n");
+                                details.append("   Sous-total: ")
+                                        .append(ligne.prixUnitaire.multiply(BigDecimal.valueOf(ligne.quantite)))
+                                        .append(" EUR\n");
                             }
                         }
-                        
+
                         details.append("\n").append("-".repeat(60)).append("\n");
                         details.append("MONTANT TOTAL: ").append(order.montantTotal).append(" EUR\n");
-                        
+
                         detailsArea.setText(details.toString());
                     }
                 } catch (SQLException ex) {
@@ -569,9 +661,10 @@ public class MainFrame extends JFrame {
                             StringBuilder pizzas = new StringBuilder();
                             for (int i = 0; i < order.lignes.size(); i++) {
                                 pizzas.append(order.lignes.get(i).nomPizza);
-                                if (i < order.lignes.size() - 1) pizzas.append(", ");
+                                if (i < order.lignes.size() - 1)
+                                    pizzas.append(", ");
                             }
-                            historyTableModel.addRow(new Object[]{
+                            historyTableModel.addRow(new Object[] {
                                     order.idCommande,
                                     order.dateCommande,
                                     order.montantTotal + " EUR",
@@ -607,19 +700,21 @@ public class MainFrame extends JFrame {
         JFileChooser fileChooser = new JFileChooser();
         fileChooser.setFileFilter(new FileNameExtensionFilter("PDF Files", "pdf"));
         fileChooser.setSelectedFile(new File("facture_" + idCommande + ".pdf"));
-        
+
         if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
             new Thread(() -> {
                 try {
                     generateAndSavePDF(idCommande, fileChooser.getSelectedFile());
                     SwingUtilities.invokeLater(() -> {
                         showOutput("PDF téléchargé: " + fileChooser.getSelectedFile().getAbsolutePath());
-                        JOptionPane.showMessageDialog(this, "Facture téléchargée avec succès!", "Succès", JOptionPane.INFORMATION_MESSAGE);
+                        JOptionPane.showMessageDialog(this, "Facture téléchargée avec succès!", "Succès",
+                                JOptionPane.INFORMATION_MESSAGE);
                     });
                 } catch (Exception ex) {
                     SwingUtilities.invokeLater(() -> {
                         showOutput("Erreur génération PDF: " + ex.getMessage());
-                        JOptionPane.showMessageDialog(this, "Erreur: " + ex.getMessage(), "Erreur", JOptionPane.ERROR_MESSAGE);
+                        JOptionPane.showMessageDialog(this, "Erreur: " + ex.getMessage(), "Erreur",
+                                JOptionPane.ERROR_MESSAGE);
                     });
                 }
             }).start();
@@ -641,7 +736,7 @@ public class MainFrame extends JFrame {
                 .setFontSize(24)
                 .setBold()
                 .setTextAlignment(TextAlignment.CENTER));
-        
+
         document.add(new Paragraph("\n"));
         document.add(new Paragraph("Commande #" + order.idCommande)
                 .setFontSize(12)
@@ -651,7 +746,7 @@ public class MainFrame extends JFrame {
                 .setTextAlignment(TextAlignment.CENTER));
         document.add(new Paragraph("\n"));
 
-        Table table = new Table(UnitValue.createPercentArray(new float[]{40, 15, 15, 15, 15}));
+        Table table = new Table(UnitValue.createPercentArray(new float[] { 40, 15, 15, 15, 15 }));
         table.setWidth(UnitValue.createPercentValue(100));
 
         table.addHeaderCell(new Cell().add(new Paragraph("Pizza").setBold()));
@@ -665,7 +760,7 @@ public class MainFrame extends JFrame {
             table.addCell(new Cell().add(new Paragraph(ligne.taille)));
             table.addCell(new Cell().add(new Paragraph(String.valueOf(ligne.quantite))));
             table.addCell(new Cell().add(new Paragraph(ligne.prixUnitaire.toPlainString() + " EUR")));
-            
+
             if (ligne.estGratuite) {
                 table.addCell(new Cell().add(new Paragraph("GRATUITE")));
             } else {
@@ -694,7 +789,7 @@ public class MainFrame extends JFrame {
 
         JPanel ordersCard = buildCard("Workflow livraison");
         DefaultTableModel deliveryModel = new DefaultTableModel(
-                new Object[]{"Commande", "Client", "Etat", "Date commande", "Prise en charge", "ETA (min)"},
+                new Object[] { "Commande", "Client", "Etat", "Date commande", "Prise en charge", "ETA (min)" },
                 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -726,7 +821,7 @@ public class MainFrame extends JFrame {
 
         JButton refreshBtn = new JButton("Rafraichir");
         stylePrimaryButton(refreshBtn, new Color(98, 84, 177));
-        
+
         JButton takeInChargeBtn = new JButton("Prendre en charge");
         stylePrimaryButton(takeInChargeBtn, new Color(236, 143, 25));
 
@@ -736,7 +831,8 @@ public class MainFrame extends JFrame {
         takeInChargeBtn.addActionListener(e -> {
             int row = deliveryTable.getSelectedRow();
             if (row < 0) {
-                JOptionPane.showMessageDialog(this, "Selectionne une commande.", "Info", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Selectionne une commande.", "Info",
+                        JOptionPane.INFORMATION_MESSAGE);
                 return;
             }
             int modelRow = deliveryTable.convertRowIndexToModel(row);
@@ -744,7 +840,8 @@ public class MainFrame extends JFrame {
             String statut = String.valueOf(deliveryModel.getValueAt(modelRow, 2));
 
             if (!"preparee".equals(statut)) {
-                JOptionPane.showMessageDialog(this, "La commande doit etre en etat preparee.", "Info", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(this, "La commande doit etre en etat preparee.", "Info",
+                        JOptionPane.INFORMATION_MESSAGE);
                 return;
             }
 
@@ -761,7 +858,8 @@ public class MainFrame extends JFrame {
         deliveredBtn.addActionListener(e -> {
             int row = deliveryTable.getSelectedRow();
             if (row < 0) {
-                JOptionPane.showMessageDialog(this, "Selectionne une commande.", "Info", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Selectionne une commande.", "Info",
+                        JOptionPane.INFORMATION_MESSAGE);
                 return;
             }
             int modelRow = deliveryTable.convertRowIndexToModel(row);
@@ -769,7 +867,8 @@ public class MainFrame extends JFrame {
             String statut = String.valueOf(deliveryModel.getValueAt(modelRow, 2));
 
             if (!"en_livraison".equals(statut)) {
-                JOptionPane.showMessageDialog(this, "La commande doit etre en etat en_livraison.", "Info", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(this, "La commande doit etre en etat en_livraison.", "Info",
+                        JOptionPane.INFORMATION_MESSAGE);
                 return;
             }
 
@@ -782,7 +881,7 @@ public class MainFrame extends JFrame {
                 JOptionPane.showMessageDialog(this, ex.getMessage(), "Erreur", JOptionPane.ERROR_MESSAGE);
             }
         });
-        
+
         refreshBtn.addActionListener(e -> {
             new Thread(() -> {
                 try {
@@ -790,7 +889,7 @@ public class MainFrame extends JFrame {
                     SwingUtilities.invokeLater(() -> {
                         deliveryModel.setRowCount(0);
                         for (PizzaService.DelivererOrderState order : orders) {
-                            deliveryModel.addRow(new Object[]{
+                            deliveryModel.addRow(new Object[] {
                                     order.idCommande,
                                     order.nomClient,
                                     order.statut,
@@ -804,7 +903,8 @@ public class MainFrame extends JFrame {
                         }
                     });
                 } catch (Exception ex) {
-                    SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, ex.getMessage(), "Erreur", JOptionPane.ERROR_MESSAGE));
+                    SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, ex.getMessage(), "Erreur",
+                            JOptionPane.ERROR_MESSAGE));
                 }
             }).start();
         });
@@ -843,7 +943,8 @@ public class MainFrame extends JFrame {
         header.add(refreshBtn, BorderLayout.EAST);
 
         DefaultTableModel slipsTableModel = new DefaultTableModel(
-                new Object[]{"Commande", "Client", "Pizza", "Quantité", "Gratuite", "Date Commande", "Date Prévue", "Date Réelle", "Retard (min)", "Véhicule"},
+                new Object[] { "Commande", "Client", "Pizza", "Quantité", "Gratuite", "Date Commande", "Date Prévue",
+                        "Date Réelle", "Retard (min)", "Véhicule" },
                 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -874,7 +975,7 @@ public class MainFrame extends JFrame {
                         slipsTableModel.setRowCount(0);
                         for (PizzaService.DeliverySlip slip : slips) {
                             String retardDisplay = slip.minutesRetard > 0 ? slip.minutesRetard + " ⚠️" : "-";
-                            slipsTableModel.addRow(new Object[]{
+                            slipsTableModel.addRow(new Object[] {
                                     slip.idCommande,
                                     slip.nomClient,
                                     slip.nomPizza,
@@ -887,19 +988,20 @@ public class MainFrame extends JFrame {
                                     slip.typeVehicule + " (" + slip.immatriculation + ")"
                             });
                         }
-                        
+
                         StringBuilder detailsText = new StringBuilder();
                         detailsText.append("FICHE DE LIVRAISON\n");
                         detailsText.append("=".repeat(70)).append("\n\n");
                         detailsText.append("Livreur: ").append(session.getLogin()).append("\n");
                         detailsText.append("Total commandes: ").append(slips.size()).append("\n\n");
-                        
+
                         long totalRetards = slips.stream().filter(s -> s.minutesRetard > 0).count();
-                        detailsText.append("Commandes avec retard: ").append(totalRetards).append(" / ").append(slips.size()).append("\n");
-                        
+                        detailsText.append("Commandes avec retard: ").append(totalRetards).append(" / ")
+                                .append(slips.size()).append("\n");
+
                         long totalGratuites = slips.stream().filter(s -> s.estGratuite).count();
                         detailsText.append("Pizzas gratuites distribuées: ").append(totalGratuites).append("\n\n");
-                        
+
                         detailsText.append("Détails des commandes:\n");
                         detailsText.append("-".repeat(70)).append("\n");
                         for (PizzaService.DeliverySlip slip : slips) {
@@ -918,9 +1020,10 @@ public class MainFrame extends JFrame {
                                     detailsText.append("  ⚠️ RETARD: ").append(slip.minutesRetard).append(" minutes\n");
                                 }
                             }
-                            detailsText.append("  Véhicule: ").append(slip.typeVehicule).append(" (").append(slip.immatriculation).append(")\n");
+                            detailsText.append("  Véhicule: ").append(slip.typeVehicule).append(" (")
+                                    .append(slip.immatriculation).append(")\n");
                         }
-                        
+
                         detailsArea.setText(detailsText.toString());
                     });
                 } catch (Exception ex) {
@@ -992,8 +1095,10 @@ public class MainFrame extends JFrame {
         usersTable.setBackground(new Color(249, 251, 254));
         usersTable.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
             @Override
-            public java.awt.Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
-                java.awt.Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            public java.awt.Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
+                    boolean hasFocus, int row, int column) {
+                java.awt.Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row,
+                        column);
                 if (!isSelected) {
                     c.setBackground(row % 2 == 0 ? Color.WHITE : new Color(245, 248, 252));
                 }
@@ -1118,7 +1223,7 @@ public class MainFrame extends JFrame {
                     List<UserService.UserAccountInfo> users = get();
                     adminUsersTableModel.setRowCount(0);
                     for (UserService.UserAccountInfo user : users) {
-                        adminUsersTableModel.addRow(new Object[]{
+                        adminUsersTableModel.addRow(new Object[] {
                                 user.idUtilisateur,
                                 user.login,
                                 user.role,
@@ -1168,14 +1273,16 @@ public class MainFrame extends JFrame {
         deleteBtn.setEnabled(!String.valueOf(idValue).equals(String.valueOf(session.getIdUtilisateur())));
 
         if (!deleteBtn.isEnabled()) {
-            adminSelectedStatusLabel.setText(adminSelectedStatusLabel.getText() + " | suppression du compte courant interdite");
+            adminSelectedStatusLabel
+                    .setText(adminSelectedStatusLabel.getText() + " | suppression du compte courant interdite");
         }
     }
 
     private void deleteSelectedAdminUser(JTable usersTable, JButton deleteBtn) {
         int viewRow = usersTable.getSelectedRow();
         if (viewRow < 0) {
-            JOptionPane.showMessageDialog(this, "Sélectionne d'abord un compte.", "Info", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Sélectionne d'abord un compte.", "Info",
+                    JOptionPane.INFORMATION_MESSAGE);
             return;
         }
 
@@ -1184,7 +1291,8 @@ public class MainFrame extends JFrame {
         String login = String.valueOf(adminUsersTableModel.getValueAt(modelRow, 1));
 
         if (idUtilisateur == session.getIdUtilisateur()) {
-            JOptionPane.showMessageDialog(this, "Tu ne peux pas supprimer ton propre compte.", "Info", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Tu ne peux pas supprimer ton propre compte.", "Info",
+                    JOptionPane.INFORMATION_MESSAGE);
             return;
         }
 
@@ -1193,8 +1301,7 @@ public class MainFrame extends JFrame {
                 "Supprimer le compte '" + login + "' (#" + idUtilisateur + ") ?",
                 "Confirmer la suppression",
                 JOptionPane.YES_NO_OPTION,
-                JOptionPane.WARNING_MESSAGE
-        );
+                JOptionPane.WARNING_MESSAGE);
         if (confirm != JOptionPane.YES_OPTION) {
             return;
         }
@@ -1221,11 +1328,13 @@ public class MainFrame extends JFrame {
             String json = buildOrderJson();
 
             long idCommande = service.passerCommande(session.getIdClient(), livreur.id, json, minutes);
-            showOutput("Commande creee: " + idCommande + " | Livreur assigné: " + livreur.nom + " (" + livreur.typeVehicule + ")");
+            showOutput("Commande creee: " + idCommande + " | Livreur assigné: " + livreur.nom + " ("
+                    + livreur.typeVehicule + ")");
             clearCart();
             refreshFidelityLabel();
             refreshClientTracking();
-            JOptionPane.showMessageDialog(this, "Commande creee!\n\nNuméro: " + idCommande + "\nLivreur: " + livreur.nom + "\nVéhicule: " + livreur.typeVehicule);
+            JOptionPane.showMessageDialog(this, "Commande creee!\n\nNuméro: " + idCommande + "\nLivreur: " + livreur.nom
+                    + "\nVéhicule: " + livreur.typeVehicule);
         } catch (Exception ex) {
             showOutput("Erreur commande: " + ex.getMessage());
             JOptionPane.showMessageDialog(this, ex.getMessage(), "Erreur", JOptionPane.ERROR_MESSAGE);
@@ -1309,7 +1418,7 @@ public class MainFrame extends JFrame {
         trackingProgressBar.setString(progress + "%");
 
         if ("livree".equals(tracking.statut)) {
-            trackingEtaLabel.setText("ETA: Livree a " + (tracking.dateLivree != null ? tracking.dateLivree : "-") );
+            trackingEtaLabel.setText("ETA: Livree a " + (tracking.dateLivree != null ? tracking.dateLivree : "-"));
         } else {
             trackingEtaLabel.setText("ETA dynamique: " + tracking.etaMinutes + " min | Prevue: " + tracking.datePrevue);
         }
@@ -1483,10 +1592,12 @@ public class MainFrame extends JFrame {
         checkBalanceBtn.addActionListener(e -> {
             try {
                 PizzaService.ClientOption c = (PizzaService.ClientOption) balanceClientCombo.getSelectedItem();
-                if (c == null) throw new IllegalStateException("Aucun client.");
+                if (c == null)
+                    throw new IllegalStateException("Aucun client.");
                 BigDecimal solde = service.lireSolde(c.id);
                 showOutput("Solde client " + c.nom + " (#" + c.id + ") = " + solde + " EUR");
-                JOptionPane.showMessageDialog(this, "Solde: " + solde + " EUR", "Solde", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Solde: " + solde + " EUR", "Solde",
+                        JOptionPane.INFORMATION_MESSAGE);
             } catch (Exception ex) {
                 showOutput("Erreur: " + ex.getMessage());
                 JOptionPane.showMessageDialog(this, ex.getMessage(), "Erreur", JOptionPane.ERROR_MESSAGE);
@@ -1510,7 +1621,8 @@ public class MainFrame extends JFrame {
         rechargeBtn.addActionListener(e -> {
             try {
                 PizzaService.ClientOption c = (PizzaService.ClientOption) rechargeClientCombo.getSelectedItem();
-                if (c == null) throw new IllegalStateException("Aucun client.");
+                if (c == null)
+                    throw new IllegalStateException("Aucun client.");
                 BigDecimal montant = new BigDecimal(montantRechargeField.getText().trim());
                 service.rechargerCompte(c.id, montant);
                 showOutput("Recharge de " + montant + " EUR effectuee pour " + c.nom);
@@ -1561,7 +1673,8 @@ public class MainFrame extends JFrame {
         return tab;
     }
 
-    private void refreshAccountTab(JComboBox<PizzaService.ClientOption> balanceCombo, JComboBox<PizzaService.ClientOption> rechargeCombo) {
+    private void refreshAccountTab(JComboBox<PizzaService.ClientOption> balanceCombo,
+            JComboBox<PizzaService.ClientOption> rechargeCombo) {
         try {
             balanceCombo.removeAllItems();
             rechargeCombo.removeAllItems();
@@ -1627,14 +1740,14 @@ public class MainFrame extends JFrame {
 
         JPanel center = new JPanel(new BorderLayout(12, 12));
         center.setOpaque(false);
-        
+
         JPanel allMetrics = new JPanel();
         allMetrics.setOpaque(false);
         allMetrics.setLayout(new BoxLayout(allMetrics, BoxLayout.Y_AXIS));
         allMetrics.add(metricsRow);
         allMetrics.add(Box.createVerticalStrut(8));
         allMetrics.add(statsRow);
-        
+
         center.add(allMetrics, BorderLayout.NORTH);
         center.add(cards, BorderLayout.CENTER);
 
@@ -1679,7 +1792,7 @@ public class MainFrame extends JFrame {
         aboveAverageTableModel.setRowCount(0);
 
         for (PizzaService.VehicleUnusedOption vehicle : data.vehiclesNeverUsed) {
-            vehiclesTableModel.addRow(new Object[]{
+            vehiclesTableModel.addRow(new Object[] {
                     vehicle.id,
                     vehicle.typeVehicule,
                     vehicle.immatriculation,
@@ -1688,49 +1801,53 @@ public class MainFrame extends JFrame {
         }
 
         for (PizzaService.ClientOrderCount stat : data.ordersPerClient) {
-            ordersTableModel.addRow(new Object[]{stat.idClient, stat.nom, stat.nbCommandes});
+            ordersTableModel.addRow(new Object[] { stat.idClient, stat.nom, stat.nbCommandes });
         }
 
         for (PizzaService.ClientOrderCount stat : data.clientsAboveAverage) {
-            aboveAverageTableModel.addRow(new Object[]{stat.idClient, stat.nom, stat.nbCommandes});
+            aboveAverageTableModel.addRow(new Object[] { stat.idClient, stat.nom, stat.nbCommandes });
         }
 
         vehiclesNeverUsedValueLabel.setText(String.valueOf(data.vehiclesNeverUsed.size()));
         averageOrdersValueLabel.setText(data.averageOrdersPerClient.toPlainString());
         aboveAverageValueLabel.setText(String.valueOf(data.clientsAboveAverage.size()));
         totalClientsValueLabel.setText(String.valueOf(data.ordersPerClient.size()));
-        
+
         if (data.bestClient != null) {
             bestClientLabel.setText(data.bestClient.nom + " (" + data.bestClient.nbCommandes + " cmd)");
         } else {
             bestClientLabel.setText("Aucun");
         }
-        
+
         if (data.worstDeliverer != null) {
-            worstDelivererLabel.setText(data.worstDeliverer.nomLivreur + " (" + data.worstDeliverer.nbRetards + " retards - " 
-                    + data.worstDeliverer.typeVehicule + ")");
+            worstDelivererLabel
+                    .setText(data.worstDeliverer.nomLivreur + " (" + data.worstDeliverer.nbRetards + " retards - "
+                            + data.worstDeliverer.typeVehicule + ")");
         } else {
             worstDelivererLabel.setText("Aucun");
         }
-        
+
         if (data.mostOrderedPizza != null) {
-            mostOrderedPizzaLabel.setText(data.mostOrderedPizza.nomPizza + " (" + data.mostOrderedPizza.nbCommandes + " cmd)");
+            mostOrderedPizzaLabel
+                    .setText(data.mostOrderedPizza.nomPizza + " (" + data.mostOrderedPizza.nbCommandes + " cmd)");
         } else {
             mostOrderedPizzaLabel.setText("Aucune");
         }
-        
+
         if (data.leastOrderedPizza != null) {
-            leastOrderedPizzaLabel.setText(data.leastOrderedPizza.nomPizza + " (" + data.leastOrderedPizza.nbCommandes + " cmd)");
+            leastOrderedPizzaLabel
+                    .setText(data.leastOrderedPizza.nomPizza + " (" + data.leastOrderedPizza.nbCommandes + " cmd)");
         } else {
             leastOrderedPizzaLabel.setText("Aucune");
         }
-        
+
         if (data.favoriteIngredient != null) {
-            favoriteIngredientLabel.setText(data.favoriteIngredient.nomIngredient + " (" + data.favoriteIngredient.nbOccurrences + " fois)");
+            favoriteIngredientLabel.setText(
+                    data.favoriteIngredient.nomIngredient + " (" + data.favoriteIngredient.nbOccurrences + " fois)");
         } else {
             favoriteIngredientLabel.setText("Aucun");
         }
-        
+
         showOutput("Dashboard admin rafraichi.");
     }
 
@@ -1772,8 +1889,10 @@ public class MainFrame extends JFrame {
         table.setBackground(new Color(249, 251, 254));
         table.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
             @Override
-            public java.awt.Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
-                java.awt.Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            public java.awt.Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
+                    boolean hasFocus, int row, int column) {
+                java.awt.Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row,
+                        column);
                 if (!isSelected) {
                     c.setBackground(row % 2 == 0 ? Color.WHITE : new Color(245, 248, 252));
                 }
@@ -1788,8 +1907,7 @@ public class MainFrame extends JFrame {
         card.setBackground(Color.WHITE);
         card.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(new Color(218, 226, 239)),
-                new EmptyBorder(12, 12, 12, 12)
-        ));
+                new EmptyBorder(12, 12, 12, 12)));
 
         JLabel titleLabel = new JLabel(title);
         titleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
@@ -1821,8 +1939,7 @@ public class MainFrame extends JFrame {
         card.setBackground(Color.WHITE);
         card.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(new Color(218, 226, 239)),
-                new EmptyBorder(12, 12, 12, 12)
-        ));
+                new EmptyBorder(12, 12, 12, 12)));
 
         JLabel cardTitle = new JLabel(title);
         cardTitle.setFont(new Font("Segoe UI", Font.BOLD, 15));
@@ -1842,8 +1959,7 @@ public class MainFrame extends JFrame {
     private void setupField(JTextField field) {
         field.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(new Color(203, 212, 226)),
-                new EmptyBorder(6, 8, 6, 8)
-        ));
+                new EmptyBorder(6, 8, 6, 8)));
         field.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         field.setBackground(new Color(252, 253, 255));
     }
@@ -1897,9 +2013,8 @@ public class MainFrame extends JFrame {
         try {
             PizzaService.FidelityInfo fidelity = service.getFidelityInfo(session.getIdClient());
             fidelityLabel.setText(
-                String.format("Pizzas achetees: %d | Encore %d avant une gratuite! 🎉 (prochain bonus à %d)",
-                    fidelity.totalPizzas, fidelity.pizzasUntilFree, fidelity.nextFreeNumber)
-            );
+                    String.format("Pizzas achetees: %d | Encore %d avant une gratuite! 🎉 (prochain bonus à %d)",
+                            fidelity.totalPizzas, fidelity.pizzasUntilFree, fidelity.nextFreeNumber));
         } catch (SQLException ex) {
             fidelityLabel.setText("Erreur chargement fidelite: " + ex.getMessage());
         }
@@ -1926,7 +2041,8 @@ public class MainFrame extends JFrame {
         int quantite = qtyValue.intValue();
 
         if (pizza == null || taille == null) {
-            JOptionPane.showMessageDialog(this, "Choisis une pizza et une taille.", "Info", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Choisis une pizza et une taille.", "Info",
+                    JOptionPane.INFORMATION_MESSAGE);
             return;
         }
         if (quantite <= 0) {
@@ -2072,7 +2188,8 @@ public class MainFrame extends JFrame {
 
         @Override
         public String toString() {
-            return pizza.nom + " | taille=" + taille.code + " | qte=" + quantite + " | estime=" + estimatedTotal() + " EUR";
+            return pizza.nom + " | taille=" + taille.code + " | qte=" + quantite + " | estime=" + estimatedTotal()
+                    + " EUR";
         }
     }
 }
