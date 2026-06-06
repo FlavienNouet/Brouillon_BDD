@@ -62,22 +62,63 @@ public class UserService {
 
     public boolean createUser(String login, String password, String role, Long idClient, Long idLivreur) {
         try (Connection conn = Database.getConnection()) {
-            String sql = "INSERT INTO utilisateur (login, password_hash, role, id_client, id_livreur) VALUES (?, ?, ?, ?, ?)";
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.setString(1, login);
-                stmt.setString(2, passwordEncoder.encode(password));
-                stmt.setString(3, role);
-                if (idClient != null) {
-                    stmt.setLong(4, idClient);
-                } else {
-                    stmt.setNull(4, java.sql.Types.BIGINT);
+            conn.setAutoCommit(false);
+            try {
+                // For CLIENT role, auto-create a client record if idClient is null
+                if ("CLIENT".equals(role) && idClient == null) {
+                    String createClientSql = "INSERT INTO client (nom, email) VALUES (?, ?)";
+                    PreparedStatement clientStmt = conn.prepareStatement(createClientSql, java.sql.Statement.RETURN_GENERATED_KEYS);
+                    try {
+                        clientStmt.setString(1, login);
+                        clientStmt.setString(2, login + "@example.com");
+                        clientStmt.executeUpdate();
+                        try (ResultSet generatedKeys = clientStmt.getGeneratedKeys()) {
+                            if (generatedKeys.next()) {
+                                idClient = generatedKeys.getLong(1);
+                            }
+                        }
+                    } finally {
+                        clientStmt.close();
+                    }
+                    
+                    if (idClient == null) {
+                        throw new SQLException("Impossible de créer le client - pas d'ID généré");
+                    }
                 }
-                if (idLivreur != null) {
-                    stmt.setLong(5, idLivreur);
-                } else {
-                    stmt.setNull(5, java.sql.Types.BIGINT);
+
+                String sql = "INSERT INTO utilisateur (login, password_hash, role, id_client, id_livreur) VALUES (?, ?, ?, ?, ?)";
+                try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                    stmt.setString(1, login);
+                    stmt.setString(2, passwordEncoder.encode(password));
+                    stmt.setString(3, role);
+                    if (idClient != null) {
+                        stmt.setLong(4, idClient);
+                    } else {
+                        stmt.setNull(4, java.sql.Types.BIGINT);
+                    }
+                    if (idLivreur != null) {
+                        stmt.setLong(5, idLivreur);
+                    } else {
+                        stmt.setNull(5, java.sql.Types.BIGINT);
+                    }
+                    int result = stmt.executeUpdate();
+                    conn.commit();
+                    return result > 0;
                 }
-                return stmt.executeUpdate() > 0;
+            } catch (SQLException e) {
+                try {
+                    conn.rollback();
+                } catch (SQLException rollbackEx) {
+                    rollbackEx.printStackTrace();
+                }
+                e.printStackTrace();
+                return false;
+            } finally {
+                try {
+                    conn.setAutoCommit(true);
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
             }
         } catch (SQLException e) {
             e.printStackTrace();
